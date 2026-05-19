@@ -17,6 +17,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         val period = TimeOfDayPeriod.fromName(intent.getStringExtra(ReminderScheduler.EXTRA_PERIOD))
+        val repeatIndex = intent.getIntExtra(ReminderScheduler.EXTRA_REPEAT_INDEX, 0)
         val medicineIds = intent.getStringExtra(ReminderScheduler.EXTRA_MEDICINE_IDS)
             .orEmpty()
             .split(",")
@@ -32,6 +33,7 @@ class ReminderReceiver : BroadcastReceiver() {
             val medicines = appContainer.medicineRepository.getMedicinesByIds(medicineIds)
             val schedules = appContainer.reminderRepository.getActiveSchedulesForMedicineIds(medicineIds)
                 .filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+            val shouldSpeak = schedules.any { it.spokenReminderEnabled }
 
             val groupedItems = medicines.map { medicine ->
                 val schedule = schedules.firstOrNull { it.medicineId == medicine.id }
@@ -50,12 +52,18 @@ class ReminderReceiver : BroadcastReceiver() {
                     medicines = groupedItems,
                     medicineIdsCsv = medicineIds.joinToString(",")
                 )
-                val names = groupedItems.joinToString(", ") { it.name }
-                val speech = "Good ${period.displayName.lowercase()}. Time to take your ${period.displayName} medicines: $names."
-                speakReminder(context.applicationContext, speech, pendingResult)
+                if (shouldSpeak) {
+                    val names = groupedItems.joinToString(", ") { it.name }
+                    val speech = "Good ${period.displayName.lowercase()}. Time to take your ${period.displayName} medicines: $names."
+                    speakReminder(context.applicationContext, speech, pendingResult)
+                } else {
+                    pendingResult.finish()
+                }
 
-                val scheduler = ReminderScheduler(context.applicationContext, appContainer.reminderRepository)
-                scheduler.scheduleGroupedReminderForPeriod(period)
+                if (repeatIndex == 0) {
+                    val scheduler = ReminderScheduler(context.applicationContext, appContainer.reminderRepository)
+                    scheduler.scheduleGroupedReminderForPeriod(period)
+                }
             } else {
                 pendingResult.finish()
             }

@@ -49,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +84,7 @@ import java.util.Calendar
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.firstOrNull
 
 private data class DoseSlotState(
     val label: String,
@@ -110,8 +113,10 @@ fun ScanAddScreen(
     }
 
     var title by remember { mutableStateOf("") }
+    var titleField by remember { mutableStateOf(TextFieldValue("")) }
     var reminderTitle by remember { mutableStateOf("") }
     var dosageText by remember { mutableStateOf("") }
+    var dosageField by remember { mutableStateOf(TextFieldValue("")) }
     var notes by remember { mutableStateOf("") }
     var reminderTime by remember { mutableStateOf("08:00") }
     var foodRelation by remember { mutableStateOf("none") }
@@ -276,10 +281,14 @@ fun ScanAddScreen(
         delay(250)
         suggestionLoading = true
 
-        val localAndCached = appContainer.medicineInfoRepository.suggestNames(query, limit = 10)
+        val repoSuggestions = runCatching {
+            appContainer.remoteMedicineRepository.getSuggestions(context, query, limit = 10).firstOrNull() ?: emptyList()
+        }.getOrElse { emptyList() }
+
+        val localAndCached = repoSuggestions + appContainer.medicineInfoRepository.suggestNames(query, limit = 10)
         val onlineSuggestions = if (OpenFDAClient.isConnectedToInternet(context)) {
             runCatching {
-                appContainer.remoteMedicineRepository.fetchOpenFdaSuggestions(query, limit = 10)
+                appContainer.remoteMedicineRepository.fetchGlobalMedicineSuggestions(query, limit = 10)
             }.getOrElse { emptyList() }
         } else {
             emptyList()
@@ -368,21 +377,31 @@ fun ScanAddScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = {
-                    title = it
-                    titleAutoFilled = false
-                },
-                label = { Text("Medicine name") },
-                supportingText = { Text("Edit this before saving if OCR guessed wrong.") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
-                    focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                    OutlinedTextField(
+                        value = titleField,
+                        onValueChange = {
+                            titleField = it
+                            title = it.text
+                            titleAutoFilled = false
+                        },
+                        label = { Text("Medicine name") },
+                        supportingText = { Text("Edit this before saving if OCR guessed wrong.") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+                            focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        trailingIcon = {
+                            androidx.compose.material3.IconButton(onClick = {
+                                // select all text for quick replace or delete
+                                val t = titleField.text
+                                titleField = titleField.copy(selection = TextRange(0, t.length))
+                            }) {
+                                androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = "Select all")
+                            }
+                        }
+                    )
 
             if (suggestionLoading) {
                 Text("Finding medicines...", style = MaterialTheme.typography.bodySmall)
@@ -392,12 +411,19 @@ fun ScanAddScreen(
                 SuggestionListCard(
                     suggestions = nameSuggestions,
                     onSuggestionSelected = { suggestion ->
+                        // Fill both TextFieldValue and plain text backing vars so UI and save flow stay in sync
                         title = suggestion.name
+                        titleField = titleField.copy(text = suggestion.name, selection = TextRange(suggestion.name.length))
                         titleAutoFilled = true
-                        if (dosageText.isBlank() && suggestion.dosageHint.isNotBlank()) {
+
+                        if (suggestion.dosageHint.isNotBlank()) {
                             dosageText = suggestion.dosageHint
+                            dosageField = dosageField.copy(text = suggestion.dosageHint, selection = TextRange(suggestion.dosageHint.length))
                             dosageAutoFilled = true
                         }
+
+                        // collapse suggestions after selection
+                        nameSuggestions = emptyList()
                     }
                 )
             }
@@ -412,9 +438,10 @@ fun ScanAddScreen(
             )
 
             OutlinedTextField(
-                value = dosageText,
+                value = dosageField,
                 onValueChange = {
-                    dosageText = it
+                    dosageField = it
+                    dosageText = it.text
                     dosageAutoFilled = false
                 },
                 label = { Text("Dosage / strength") },
@@ -423,7 +450,15 @@ fun ScanAddScreen(
                     focusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
                 ),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                trailingIcon = {
+                    androidx.compose.material3.IconButton(onClick = {
+                        val t = dosageField.text
+                        dosageField = dosageField.copy(selection = TextRange(0, t.length))
+                    }) {
+                        androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = "Select all")
+                    }
+                }
             )
 
             OutlinedTextField(

@@ -1,15 +1,21 @@
 package com.example.medicinreminder.data.repository
 
+import android.content.Context
 import com.example.medicinreminder.data.api.OpenFDAClient
+import com.example.medicinreminder.data.api.RxNormClient
 import com.example.medicinreminder.data.dao.RemoteMedicineDao
 import com.example.medicinreminder.data.entity.RemoteMedicineEntity
 import com.example.medicinreminder.data.model.MedicineNameSuggestion
 import com.example.medicinreminder.data.model.OpenFDADrug
 import com.example.medicinreminder.data.model.OpenFdaMedicineInfo
+import com.example.medicinreminder.data.model.RxNormCandidate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
+import com.example.medicinreminder.data.local.IndiaMedicinesProvider
 
 class RemoteMedicineRepository(private val remoteMedicineDao: RemoteMedicineDao) {
     private val dosageHintRegex = Regex("(?i)\\b\\d+(?:\\.\\d+)?\\s?(mg|mcg|g|ml|iu)\\b")
@@ -114,6 +120,68 @@ class RemoteMedicineRepository(private val remoteMedicineDao: RemoteMedicineDao)
         }
     }
 
+    suspend fun fetchGlobalMedicineSuggestions(query: String, limit: Int = 10): List<MedicineNameSuggestion> {
+        return withContext(Dispatchers.IO) {
+            val trimmed = query.trim()
+            if (trimmed.length < 2) return@withContext emptyList()
+
+            val suggestions = mutableListOf<MedicineNameSuggestion>()
+
+            runCatching {
+                fetchOpenFdaSuggestions(trimmed, limit)
+            }.getOrDefault(emptyList())
+                .forEach { suggestions += it }
+
+            runCatching {
+                RxNormClient.getService().approximateTerm(term = trimmed, maxEntries = limit, option = 1)
+            }.getOrNull()
+                ?.approximateGroup
+                ?.candidate
+                .orEmpty()
+                .mapNotNull { it.toMedicineSuggestion() }
+                .forEach { suggestions += it }
+
+            suggestions
+                .filter { it.name.isNotBlank() }
+                .distinctBy { it.name.lowercase() }
+                .take(limit)
+        }
+    }
+
+    fun getSuggestions(context: Context, query: String, limit: Int = 10): Flow<List<MedicineNameSuggestion>> = flow {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) {
+            emit(emptyList())
+            return@flow
+        }
+
+        val suggestions = mutableListOf<MedicineNameSuggestion>()
+
+        // 1) Local India FTS DB (instant, offline)
+        val local = runCatching { IndiaMedicinesProvider.query(context, trimmed, limit) }.getOrDefault(emptyList())
+        suggestions += local
+
+        // 2) Online RxNorm/RxTerms fallback (only if connected)
+        if (OpenFDAClient.isConnectedToInternet(context)) {
+            val online = runCatching {
+                RxNormClient.getService().approximateTerm(term = trimmed, maxEntries = limit, option = 1)
+            }.getOrNull()
+
+            val onlineCandidates = online
+                ?.approximateGroup
+                ?.candidate
+                .orEmpty()
+                .mapNotNull { it.toMedicineSuggestion() }
+
+            // Add only those not already present (preserve local-first ordering)
+            onlineCandidates.filter { oc -> suggestions.none { it.name.equals(oc.name, true) } }
+                .forEach { suggestions += it }
+        }
+
+        // Emit merged list (local results already first)
+        emit(suggestions.take(limit))
+    }
+
     private suspend fun cacheOpenFdaMedicineInfo(query: String, medicineInfo: OpenFdaMedicineInfo) {
         val entity = RemoteMedicineEntity(
             id = normalizeQuery(query),
@@ -186,6 +254,20 @@ class RemoteMedicineRepository(private val remoteMedicineDao: RemoteMedicineDao)
                 source = "OpenFDA"
             )
         }
+    }
+
+    private fun RxNormCandidate.toMedicineSuggestion(): MedicineNameSuggestion? {
+        val nameValue = name?.trim().orEmpty()
+        if (nameValue.isBlank()) return null
+        return MedicineNameSuggestion(
+            name = nameValue,
+            dosageHint = extractDosageFromName(nameValue),
+            source = "RxNorm"
+        )
+    }
+
+    private fun extractDosageFromName(value: String): String {
+        return dosageHintRegex.find(value)?.value.orEmpty()
     }
 
     private fun normalizeQuery(value: String): String {

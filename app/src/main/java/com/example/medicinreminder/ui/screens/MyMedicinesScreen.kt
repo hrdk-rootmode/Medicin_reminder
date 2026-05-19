@@ -3,10 +3,15 @@ package com.example.medicinreminder.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -14,6 +19,7 @@ import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.entity.UserEntitlementEntity
 import com.example.medicinreminder.data.repository.AppContainer
+import com.example.medicinreminder.notifications.ReminderScheduler
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
@@ -23,11 +29,13 @@ fun MyMedicinesScreen(
     navController: NavHostController,
     appContainer: AppContainer
 ) {
+    val context = LocalContext.current
     val medicines by appContainer.medicineRepository.getAllMedicinesIncludingArchived().collectAsState(initial = emptyList())
     val schedules by appContainer.reminderRepository.getAllActiveSchedules().collectAsState(initial = emptyList())
     val entitlement by appContainer.entitlementRepository.getEntitlement().collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     var selectedMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
+    var alertSettingsMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     
     Scaffold(
         topBar = {
@@ -99,6 +107,7 @@ fun MyMedicinesScreen(
                         schedules = schedules.filter { it.medicineId == medicine.id },
                         isArchived = medicine.isArchived,
                         onClick = { selectedMedicine = medicine },
+                        onAlertSettingsClick = { alertSettingsMedicine = medicine },
                         onDelete = {
                             scope.launch {
                                 appContainer.medicineRepository.archiveMedicine(medicine.id)
@@ -129,6 +138,76 @@ fun MyMedicinesScreen(
                 }
             }
         )
+    }
+
+    alertSettingsMedicine?.let { medicine ->
+        val medicineSchedules = schedules.filter { it.medicineId == medicine.id }
+        val currentRepeatCount = (medicineSchedules.maxOfOrNull { it.alertRepeatCount } ?: 2).coerceIn(1, 5)
+        val currentSpoken = medicineSchedules.any { it.spokenReminderEnabled }
+        var repeatCount by remember(medicine.id) { mutableStateOf(currentRepeatCount.toFloat()) }
+        var spokenEnabled by remember(medicine.id) { mutableStateOf(currentSpoken) }
+
+        ModalBottomSheet(
+            onDismissRequest = { alertSettingsMedicine = null }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Alert settings for ${medicine.title}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text("Repeat alert: ${repeatCount.toInt()} times")
+                Slider(
+                    value = repeatCount,
+                    onValueChange = { repeatCount = it },
+                    valueRange = 1f..5f,
+                    steps = 3
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Spoken reminder")
+                        Text("Use TextToSpeech for this medicine group.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = spokenEnabled, onCheckedChange = { spokenEnabled = it })
+                }
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val newRepeat = repeatCount.toInt().coerceIn(1, 5)
+                            medicineSchedules.forEach { schedule ->
+                                appContainer.reminderRepository.updateSchedule(
+                                    schedule.copy(
+                                        alertRepeatCount = newRepeat,
+                                        spokenReminderEnabled = spokenEnabled
+                                    )
+                                )
+                            }
+                            ReminderScheduler(context, appContainer.reminderRepository).scheduleAllReminders()
+                            alertSettingsMedicine = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save")
+                }
+
+                TextButton(
+                    onClick = { alertSettingsMedicine = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        }
     }
 }
 
@@ -193,6 +272,7 @@ fun MedicineLibraryCard(
     schedules: List<ReminderScheduleEntity>,
     isArchived: Boolean = false,
     onClick: () -> Unit,
+    onAlertSettingsClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -259,6 +339,9 @@ fun MedicineLibraryCard(
                     .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.End
             ) {
+                IconButton(onClick = onAlertSettingsClick) {
+                    Icon(imageVector = Icons.Filled.Settings, contentDescription = "Alert settings")
+                }
                 TextButton(onClick = onDelete) {
                     Text("Disable")
                 }

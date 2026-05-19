@@ -29,5 +29,7 @@ data class ReminderScheduleEntity(
     val isActive: Boolean = true,
     val isPausedByPlanLimit: Boolean = false,
     @ColumnInfo(name = "alert_repeat_count")
-    val alertRepeatCount: Int = 2
+    val alertRepeatCount: Int = 2,
+    @ColumnInfo(name = "spoken_reminder_enabled")
+    val spokenReminderEnabled: Boolean = true
 )

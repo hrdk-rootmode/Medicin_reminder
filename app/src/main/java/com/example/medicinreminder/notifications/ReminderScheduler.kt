@@ -21,9 +21,11 @@ class ReminderScheduler(
         const val EXTRA_PERIOD = "period"
         const val EXTRA_MEDICINE_IDS = "medicine_ids"
         private const val EXTRA_IS_SECOND_RING = "is_second_ring"
+        const val EXTRA_REPEAT_INDEX = "repeat_index"
 
         fun getPrimaryRequestCode(period: TimeOfDayPeriod): Int = 5000 + period.ordinal
         fun getSecondRingRequestCode(period: TimeOfDayPeriod): Int = 5100 + period.ordinal
+        fun getRepeatRequestCode(period: TimeOfDayPeriod, repeatIndex: Int): Int = 5200 + (period.ordinal * 10) + repeatIndex
     }
     
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -81,6 +83,7 @@ class ReminderScheduler(
         val earliest = triggerMinutes.minOrNull()
         val triggerHour = earliest?.div(60) ?: period.defaultHour
         val triggerMinute = earliest?.rem(60) ?: period.defaultMinute
+        val repeatCount = periodSchedules.maxOfOrNull { it.alertRepeatCount.coerceIn(1, 5) } ?: 2
 
         val commonIntent = Intent(context, ReminderReceiver::class.java).apply {
             action = GROUPED_REMINDER_ACTION
@@ -118,6 +121,26 @@ class ReminderScheduler(
             period.nextTriggerTimeMillis(triggerHour, triggerMinute) + 60_000L,
             secondRingPendingIntent
         )
+
+        for (repeatIndex in 1..repeatCount) {
+            val repeatIntent = Intent(context, ReminderReceiver::class.java).apply {
+                action = GROUPED_REMINDER_ACTION
+                putExtra(EXTRA_PERIOD, period.name)
+                putExtra(EXTRA_MEDICINE_IDS, medicineIds.joinToString(","))
+                putExtra(EXTRA_REPEAT_INDEX, repeatIndex)
+            }
+            val repeatPendingIntent = PendingIntent.getBroadcast(
+                context,
+                getRepeatRequestCode(period, repeatIndex),
+                repeatIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                period.nextTriggerTimeMillis(triggerHour, triggerMinute) + (repeatIndex * 60_000L),
+                repeatPendingIntent
+            )
+        }
     }
 
     fun cancelPeriodReminder(period: TimeOfDayPeriod) {
@@ -138,5 +161,21 @@ class ReminderScheduler(
         )
         alarmManager.cancel(primaryPendingIntent)
         alarmManager.cancel(secondPendingIntent)
+
+        for (repeatIndex in 1..5) {
+            val repeatIntent = Intent(context, ReminderReceiver::class.java).apply {
+                action = GROUPED_REMINDER_ACTION
+                putExtra(EXTRA_PERIOD, period.name)
+                putExtra(EXTRA_MEDICINE_IDS, "")
+                putExtra(EXTRA_REPEAT_INDEX, repeatIndex)
+            }
+            val repeatPendingIntent = PendingIntent.getBroadcast(
+                context,
+                getRepeatRequestCode(period, repeatIndex),
+                repeatIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            alarmManager.cancel(repeatPendingIntent)
+        }
     }
 }
