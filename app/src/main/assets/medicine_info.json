@@ -1,0 +1,202 @@
+[
+  {
+    "displayName": "Paracetamol",
+    "aliases": ["acetaminophen", "tylenol", "crocin", "panadol"],
+    "commonUses": ["Fever reduction", "Mild to moderate pain relief", "Headache relief"],
+    "commonSideEffects": ["Nausea", "Rash", "Rare liver irritation if overdosed"],
+    "warnings": ["Do not exceed 3000-4000 mg per day", "Use caution if liver disease is present"],
+    "storageGuidance": "Store in a cool, dry place away from direct sunlight. Keep away from children.",
+    "sourceName": "NIH MedlinePlus and FDA label references",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Ibuprofen",
+    "aliases": ["advil", "motrin", "brufen"],
+    "commonUses": ["Pain relief", "Inflammation reduction", "Fever reduction", "Arthritis relief"],
+    "commonSideEffects": ["Stomach upset", "Heartburn", "Dizziness", "Indigestion"],
+    "warnings": ["Take with food if possible", "Avoid if history of stomach ulcer", "May increase blood pressure"],
+    "storageGuidance": "Keep tightly closed at room temperature. Protect from light and moisture.",
+    "sourceName": "DailyMed and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Amoxicillin",
+    "aliases": ["amoxil", "moxatag"],
+    "commonUses": ["Bacterial infection treatment", "Ear infections", "Throat infections"],
+    "commonSideEffects": ["Diarrhea", "Nausea", "Rash", "Abdominal pain"],
+    "warnings": ["Complete the full prescribed course", "Seek help for allergic reaction signs", "Take with or without food"],
+    "storageGuidance": "Store at room temperature as directed. Keep away from heat and moisture.",
+    "sourceName": "DailyMed and MedlinePlus",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Cetirizine",
+    "aliases": ["zyrtec", "piriteze"],
+    "commonUses": ["Allergy symptom relief", "Sneezing and runny nose relief", "Itching relief"],
+    "commonSideEffects": ["Sleepiness", "Dry mouth", "Fatigue", "Headache"],
+    "warnings": ["May cause drowsiness in some people", "Avoid alcohol if it makes you sleepy", "Safe for elderly"],
+    "storageGuidance": "Store at room temperature in a dry place. Keep container tightly closed.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Loratadine",
+    "aliases": ["claritin", "clarityn"],
+    "commonUses": ["Allergy symptom relief", "Hay fever relief", "Hives relief"],
+    "commonSideEffects": ["Headache", "Dry mouth", "Drowsiness in some people", "Fatigue"],
+    "warnings": ["Ask pharmacist if you have liver disease", "Check for hidden allergy ingredients", "Non-drowsy for most people"],
+    "storageGuidance": "Store at room temperature away from moisture. Keep in original container.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Metformin",
+    "aliases": ["glucophage", "fortamet", "glumetza"],
+    "commonUses": ["Type 2 diabetes management", "Blood sugar control", "PCOS management"],
+    "commonSideEffects": ["Diarrhea", "Nausea", "Stomach upset", "Metallic taste"],
+    "warnings": ["Take with food if it upsets stomach", "Follow kidney monitoring from clinician", "Avoid during acute illness"],
+    "storageGuidance": "Store at room temperature in the original container. Protect from moisture.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Omeprazole",
+    "aliases": ["prilosec", "losec", "omeprazol"],
+    "commonUses": ["Acid reflux relief", "GERD treatment", "Ulcer prevention", "Heartburn relief"],
+    "commonSideEffects": ["Headache", "Stomach pain", "Nausea", "Diarrhea"],
+    "warnings": ["Use as directed by clinician", "Long-term use may need medical review", "Take 30-60 minutes before meals"],
+    "storageGuidance": "Keep in a dry place at room temperature. Protect from light and moisture.",
+    "sourceName": "NHS medicines guidance and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Lisinopril",
+    "aliases": ["prinivil", "zestril"],
+    "commonUses": ["High blood pressure control", "Heart failure management", "Post-heart attack care"],
+    "commonSideEffects": ["Dry cough", "Dizziness", "Headache", "Weakness"],
+    "warnings": ["Do not stop suddenly", "Monitor kidney function regularly", "May cause low blood pressure"],
+    "storageGuidance": "Store at room temperature away from moisture and heat. Keep in original container.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Amlodipine",
+    "aliases": ["norvasc", "istin"],
+    "commonUses": ["High blood pressure control", "Angina relief", "Coronary artery disease management"],
+    "commonSideEffects": ["Swollen ankles", "Flushing", "Headache", "Dizziness"],
+    "warnings": ["Do not stop suddenly", "Avoid grapefruit juice", "May cause low blood pressure"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from light.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Atorvastatin",
+    "aliases": ["lipitor", "sortis"],
+    "commonUses": ["Cholesterol reduction", "Heart disease prevention", "Stroke prevention"],
+    "commonSideEffects": ["Muscle pain", "Weakness", "Headache", "Constipation"],
+    "warnings": ["Monitor liver function", "Report unusual muscle pain", "Avoid during pregnancy"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from light and moisture.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Aspirin",
+    "aliases": ["bayer", "disprin", "acetylsalicylic acid"],
+    "commonUses": ["Pain relief", "Fever reduction", "Heart attack prevention", "Stroke prevention"],
+    "commonSideEffects": ["Stomach upset", "Heartburn", "Easy bruising", "Rash"],
+    "warnings": ["Do not use if allergic", "Take with food to prevent stomach upset", "May increase bleeding risk"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Keep dry.",
+    "sourceName": "NHS medicines guidance and FDA",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Levothyroxine",
+    "aliases": ["synthroid", "levoxyl", "thyroxine"],
+    "commonUses": ["Thyroid hormone replacement", "Hypothyroidism treatment", "Thyroid cancer management"],
+    "commonSideEffects": ["Nervousness", "Tremor", "Insomnia", "Increased appetite"],
+    "warnings": ["Take on empty stomach", "Take 30-60 minutes before food", "Monitor TSH levels regularly"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from light and moisture.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Vitamin B12",
+    "aliases": ["cyanocobalamin", "methylcobalamin", "cobalamin"],
+    "commonUses": ["Vitamin B12 deficiency treatment", "Pernicious anemia relief", "Energy boost"],
+    "commonSideEffects": ["Itching", "Rash", "Diarrhea", "Joint pain (rare)"],
+    "warnings": ["Important for elderly and vegetarians", "Monitor B12 levels", "May interact with certain medications"],
+    "storageGuidance": "Store at room temperature away from heat and light. Keep in original container.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Vitamin D3",
+    "aliases": ["cholecalciferol", "vitamin d", "calciferol"],
+    "commonUses": ["Calcium absorption support", "Bone health", "Immune system support", "Deficiency prevention"],
+    "commonSideEffects": ["Nausea", "Vomiting", "Weakness (if overdosed)", "Constipation"],
+    "warnings": ["Important for elderly", "Monitor serum calcium levels", "Overdose risk if taking too much"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from moisture.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Calcium supplement",
+    "aliases": ["calcium carbonate", "calcium citrate", "tums"],
+    "commonUses": ["Bone health", "Osteoporosis prevention", "Dietary calcium supplement", "Antacid"],
+    "commonSideEffects": ["Constipation", "Bloating", "Gas", "Nausea"],
+    "warnings": ["Take with vitamin D", "Important for elderly women", "May interact with other medications"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Keep dry.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Diclofenac",
+    "aliases": ["voltaren", "diclomax", "arthrotec"],
+    "commonUses": ["Pain relief", "Inflammation reduction", "Arthritis relief", "Muscle pain relief"],
+    "commonSideEffects": ["Stomach upset", "Heartburn", "Nausea", "Headache"],
+    "warnings": ["Take with food", "Avoid if stomach ulcer history", "May increase blood pressure"],
+    "storageGuidance": "Store at room temperature in original container. Keep dry and away from light.",
+    "sourceName": "NHS medicines guidance and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Ranitidine",
+    "aliases": ["zantac", "ranidil"],
+    "commonUses": ["Heartburn relief", "GERD treatment", "Stomach ulcer prevention", "Acid reduction"],
+    "commonSideEffects": ["Headache", "Diarrhea", "Constipation", "Nausea"],
+    "warnings": ["Take as directed", "May interact with certain medications", "Monitor for effectiveness"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from light.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Salbutamol",
+    "aliases": ["albuterol", "ventolin", "asmol"],
+    "commonUses": ["Asthma attack relief", "Breathing difficulty relief", "Bronchospasm relief"],
+    "commonSideEffects": ["Tremor", "Nervousness", "Headache", "Increased heart rate"],
+    "warnings": ["Use as prescribed", "Seek emergency help if not improving", "May cause palpitations"],
+    "storageGuidance": "Store inhaler at room temperature. Keep away from extreme heat.",
+    "sourceName": "MedlinePlus and NHS medicines guidance",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Glibenclamide",
+    "aliases": ["glyburide", "euglucon", "daonil"],
+    "commonUses": ["Type 2 diabetes management", "Blood sugar control"],
+    "commonSideEffects": ["Hypoglycemia (low blood sugar)", "Weight gain", "Nausea", "Dizziness"],
+    "warnings": ["Monitor blood sugar levels", "Risk of low blood sugar", "Take with first meal of day"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Protect from light.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  },
+  {
+    "displayName": "Sertraline",
+    "aliases": ["zoloft", "lustral"],
+    "commonUses": ["Depression treatment", "Anxiety relief", "OCD management", "PTSD treatment"],
+    "commonSideEffects": ["Sexual dysfunction", "Insomnia", "Nausea", "Dry mouth"],
+    "warnings": ["Do not stop suddenly", "May take 4-6 weeks for full effect", "Risk of serotonin syndrome"],
+    "storageGuidance": "Store at room temperature in a tightly closed container. Keep away from moisture.",
+    "sourceName": "MedlinePlus and DailyMed",
+    "disclaimer": "General information only. Confirm with your doctor or pharmacist before use."
+  }
+]
