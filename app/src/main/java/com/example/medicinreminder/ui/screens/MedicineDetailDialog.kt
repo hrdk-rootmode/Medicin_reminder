@@ -1,12 +1,23 @@
 package com.example.medicinreminder.ui.screens
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -15,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -31,6 +44,8 @@ import com.example.medicinreminder.R
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.repository.MedicineInfoRepository
+import java.io.File
+import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +58,7 @@ fun MedicineDetailDialog(
     onArchive: () -> Unit,
     onEdit: () -> Unit
 ) {
+    val context = LocalContext.current
     var title by remember(medicine.id) { mutableStateOf(medicine.title) }
     var reminderTitle by remember(medicine.id) { mutableStateOf(medicine.reminderTitle) }
     var dosageText by remember(medicine.id) { mutableStateOf(medicine.dosageText) }
@@ -50,6 +66,18 @@ fun MedicineDetailDialog(
     var imageUri by remember(medicine.id) { mutableStateOf(medicine.imageUri.orEmpty()) }
     var infoText by remember { mutableStateOf<MedicineEntity?>(null) }
     var info by remember { mutableStateOf<com.example.medicinreminder.data.model.MedicineInfo?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            imageUri = uri.toString()
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            imageUri = Uri.fromFile(saveBitmapToCache(context, bitmap)).toString()
+        }
+    }
 
     LaunchedEffect(title) {
         info = medicineInfoRepository.lookup(title)
@@ -69,12 +97,51 @@ fun MedicineDetailDialog(
             ) {
                 Text(text = stringResource(R.string.medicine_details_screen), style = MaterialTheme.typography.headlineSmall)
 
-                if (imageUri.isNotBlank()) {
-                    AsyncImage(
-                        model = imageUri,
-                        contentDescription = stringResource(R.string.medicine_photo),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (imageUri.isNotBlank()) {
+                            AsyncImage(
+                                model = imageUri,
+                                contentDescription = stringResource(R.string.medicine_photo),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                            )
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                tonalElevation = 1.dp,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Text(
+                                        text = stringResource(R.string.no_medicine_image),
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { cameraLauncher.launch(null) }) {
+                                Text(stringResource(R.string.capture))
+                            }
+                            OutlinedButton(onClick = { galleryLauncher.launch("image/*") }) {
+                                Text(stringResource(R.string.gallery))
+                            }
+                            if (imageUri.isNotBlank()) {
+                                TextButton(onClick = { imageUri = "" }) {
+                                    Text(stringResource(R.string.remove_image))
+                                }
+                            }
+                        }
+                    }
                 }
 
                 OutlinedTextField(
@@ -167,4 +234,12 @@ fun MedicineDetailDialog(
             }
         }
     }
+}
+
+private fun saveBitmapToCache(context: android.content.Context, bitmap: Bitmap): File {
+    val outputFile = File(context.cacheDir, "medicine_image_${System.currentTimeMillis()}.png")
+    FileOutputStream(outputFile).use { stream ->
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+    }
+    return outputFile
 }

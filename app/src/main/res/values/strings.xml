@@ -94,6 +94,7 @@
     <string name="warnings_prefix">Warnings: %1$s</string>
 
     <string name="today_title">Today Medicines</string>
+    <string name="current_time_focus">Focus now</string>
     <string name="active_reminders_suffix">%1$d active reminders</string>
     <string name="no_medicines_yet">No medicines yet</string>
     <string name="tap_add_medicine">Tap Add Medicine to add your first medicine</string>
@@ -114,6 +115,9 @@
     <string name="close">Close</string>
     <string name="active">Active</string>
     <string name="paused">Paused</string>
+    <string name="capture">Capture</string>
+    <string name="remove_image">Remove image</string>
+    <string name="no_medicine_image">No image added</string>
     <string name="bullet">•</string>
 
     <!-- Notifications -->
@@ -123,6 +127,7 @@
     <string name="notification_group_scheduled">%1$d medicines scheduled</string>
     <string name="mark_all_taken">Mark All Taken</string>
     <string name="open_app">Open App</string>
+    <string name="back_to_main_screen">Back</string>
     <string name="default_dosage">As prescribed</string>
     <string name="default_food_pref">No food preference</string>
     <string name="channel_description">%1$s medicine reminders</string>

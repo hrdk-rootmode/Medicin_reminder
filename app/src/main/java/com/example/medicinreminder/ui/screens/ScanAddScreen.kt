@@ -10,19 +10,24 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -31,6 +36,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Divider
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -48,19 +55,25 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
+import androidx.compose.ui.input.pointer.pointerInput
+
+import androidx.compose.material.icons.filled.ArrowBack
 import coil.compose.AsyncImage
 import com.example.medicinreminder.R
 import com.example.medicinreminder.data.api.OpenFDAClient
@@ -73,6 +86,7 @@ import com.example.medicinreminder.data.ocr.MedicineOcrParser
 import com.example.medicinreminder.data.ocr.MedicineOcrSuggestion
 import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.notifications.ReminderScheduler
+import com.example.medicinreminder.ui.navigation.Screen
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -138,6 +152,7 @@ fun ScanAddScreen(
     var titleAutoFilled by remember { mutableStateOf(false) }
     var dosageAutoFilled by remember { mutableStateOf(false) }
     var notesAutoFilled by remember { mutableStateOf(false) }
+    var floatingButtonAnchorRight by rememberSaveable { mutableStateOf(true) }
 
     val weekdays = listOf(
         1 to "Mon",
@@ -346,276 +361,292 @@ fun ScanAddScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.add_medicine_title)) }) }
     ) { paddingValues ->
-        saveErrorMessage?.let { message ->
-            AlertDialog(
-                onDismissRequest = { saveErrorMessage = null },
-                title = { Text(stringResource(R.string.add_medicine_title)) },
-                text = { Text(message) },
-                confirmButton = {
-                    TextButton(onClick = { saveErrorMessage = null }) {
-                        Text(stringResource(R.string.close))
-                    }
-                }
-            )
-        }
-
-        ocrValidationMessage?.let { message ->
-            AlertDialog(
-                onDismissRequest = { ocrValidationMessage = null },
-                title = { Text(stringResource(R.string.scan_validation_title)) },
-                text = { Text(message) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        ocrValidationMessage = null
-                        cameraAction()
-                    }) {
-                        Text(stringResource(R.string.retry_scan))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { ocrValidationMessage = null }) {
-                        Text(stringResource(R.string.enter_manually))
-                    }
-                }
-            )
-        }
-
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(stringResource(R.string.scan_or_add_quickly), style = MaterialTheme.typography.headlineSmall)
-            Text(
-                stringResource(R.string.scan_or_add_quickly_desc),
-                style = MaterialTheme.typography.bodySmall
-            )
+            val contentMaxWidth = 720.dp
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = cameraAction, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.camera_scan))
-                }
-                OutlinedButton(onClick = { galleryLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.gallery))
-                }
-            }
-
-            if (cameraStatusMessage.isNotBlank()) {
-                Text(text = cameraStatusMessage, style = MaterialTheme.typography.bodySmall)
-            }
-
-            selectedImageUri?.let { uri ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .clickable { cameraAction() },
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = stringResource(R.string.selected_medicine_image),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-
-                    OutlinedTextField(
-                        value = titleField,
-                        onValueChange = {
-                            titleField = it
-                            title = it.text
-                            titleAutoFilled = false
-                        },
-                        label = { Text(stringResource(R.string.medicine_name)) },
-                        supportingText = { Text(stringResource(R.string.medicine_name_hint)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
-                            focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        trailingIcon = {
-                            androidx.compose.material3.IconButton(onClick = {
-                                // select all text for quick replace or delete
-                                val t = titleField.text
-                                titleField = titleField.copy(selection = TextRange(0, t.length))
-                            }) {
-                                androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
-                            }
+            saveErrorMessage?.let { message ->
+                AlertDialog(
+                    onDismissRequest = { saveErrorMessage = null },
+                    title = { Text(stringResource(R.string.add_medicine_title)) },
+                    text = { Text(message) },
+                    confirmButton = {
+                        TextButton(onClick = { saveErrorMessage = null }) {
+                            Text(stringResource(R.string.close))
                         }
-                    )
-
-            if (suggestionLoading) {
-                Text(stringResource(R.string.finding_medicines), style = MaterialTheme.typography.bodySmall)
-            }
-
-            if (nameSuggestions.isNotEmpty()) {
-                SuggestionListCard(
-                    suggestions = nameSuggestions,
-                    onSuggestionSelected = { suggestion ->
-                        // Fill both TextFieldValue and plain text backing vars so UI and save flow stay in sync
-                        title = suggestion.name
-                        titleField = titleField.copy(text = suggestion.name, selection = TextRange(suggestion.name.length))
-                        titleAutoFilled = true
-
-                        if (suggestion.dosageHint.isNotBlank()) {
-                            dosageText = suggestion.dosageHint
-                            dosageField = dosageField.copy(text = suggestion.dosageHint, selection = TextRange(suggestion.dosageHint.length))
-                            dosageAutoFilled = true
-                        }
-
-                        // collapse suggestions after selection
-                        nameSuggestions = emptyList()
                     }
                 )
             }
 
-            OutlinedTextField(
-                value = reminderTitle,
-                onValueChange = { reminderTitle = it },
-                label = { Text(stringResource(R.string.custom_reminder_title)) },
-                supportingText = { Text(stringResource(R.string.custom_reminder_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = dosageField,
-                onValueChange = {
-                    dosageField = it
-                    dosageText = it.text
-                    dosageAutoFilled = false
-                },
-                label = { Text(stringResource(R.string.dosage_strength)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
-                    focusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                trailingIcon = {
-                    androidx.compose.material3.IconButton(onClick = {
-                        val t = dosageField.text
-                        dosageField = dosageField.copy(selection = TextRange(0, t.length))
-                    }) {
-                        androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
+            ocrValidationMessage?.let { message ->
+                AlertDialog(
+                    onDismissRequest = { ocrValidationMessage = null },
+                    title = { Text(stringResource(R.string.scan_validation_title)) },
+                    text = { Text(message) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            ocrValidationMessage = null
+                            cameraAction()
+                        }) {
+                            Text(stringResource(R.string.retry_scan))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { ocrValidationMessage = null }) {
+                            Text(stringResource(R.string.enter_manually))
+                        }
                     }
-                }
-            )
+                )
+            }
 
-            OutlinedTextField(
-                value = notes,
-                onValueChange = {
-                    notes = it
-                    notesAutoFilled = false
-                },
-                label = { Text(stringResource(R.string.notes)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
-                    focusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 5
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .padding(bottom = 96.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = contentMaxWidth)
+                        .align(Alignment.CenterHorizontally)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(stringResource(R.string.scan_or_add_quickly), style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            stringResource(R.string.scan_or_add_quickly_desc),
+                            style = MaterialTheme.typography.bodySmall
+                        )
 
-            Text(stringResource(R.string.repeat_days), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.repeat_days_hint), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                weekdays.forEach { (dayNumber, dayLabel) ->
-                    FilterChip(
-                        selected = selectedWeekdays.contains(dayNumber),
-                        onClick = {
-                            selectedWeekdays = if (selectedWeekdays.contains(dayNumber)) {
-                                selectedWeekdays - dayNumber
-                            } else {
-                                selectedWeekdays + dayNumber
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = cameraAction, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.camera_scan))
                             }
-                        },
-                        label = { Text(dayLabel) }
-                    )
-                }
-            }
+                            OutlinedButton(onClick = { galleryLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.gallery))
+                            }
+                        }
 
-            DoseTableSection(
-                doseSlots = doseSlots,
-                onToggleSlot = { index ->
-                    doseSlots[index] = doseSlots[index].copy(enabled = !doseSlots[index].enabled)
-                },
-                onPickSlotTime = { index ->
-                    openTimePicker(context) { hour, minute ->
-                        doseSlots[index] = doseSlots[index].copy(time = formatTime(hour, minute), enabled = true)
-                    }
-                }
-            )
+                        if (cameraStatusMessage.isNotBlank()) {
+                            Text(text = cameraStatusMessage, style = MaterialTheme.typography.bodySmall)
+                        }
 
-            Text(stringResource(R.string.food_relation), style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("none", "before_food", "after_food").forEach { option ->
-                    FilterChip(
-                        selected = foodRelation == option,
-                        onClick = { foodRelation = option },
-                        label = { Text(option.replace('_', ' ')) }
-                    )
-                }
-            }
+                        selectedImageUri?.let { uri ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                                    .clickable { cameraAction() },
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            ) {
+                                AsyncImage(
+                                    model = uri,
+                                    contentDescription = stringResource(R.string.selected_medicine_image),
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
 
-            OutlinedTextField(
-                value = endDate,
-                onValueChange = { endDate = it },
-                label = { Text(stringResource(R.string.end_date_optional)) },
-                supportingText = { Text(stringResource(R.string.end_date_hint)) },
-                modifier = Modifier.fillMaxWidth()
-            )
+                                OutlinedTextField(
+                                    value = titleField,
+                                    onValueChange = {
+                                        titleField = it
+                                        title = it.text
+                                        titleAutoFilled = false
+                                    },
+                                    label = { Text(stringResource(R.string.medicine_name)) },
+                                    supportingText = { Text(stringResource(R.string.medicine_name_hint)) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+                                        focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        androidx.compose.material3.IconButton(onClick = {
+                                            val t = titleField.text
+                                            titleField = titleField.copy(selection = TextRange(0, t.length))
+                                        }) {
+                                            androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
+                                        }
+                                    }
+                                )
 
-            Text(
-                text = stringResource(R.string.reminder_title_hint),
-                style = MaterialTheme.typography.bodySmall
-            )
+                        if (suggestionLoading) {
+                            Text(stringResource(R.string.finding_medicines), style = MaterialTheme.typography.bodySmall)
+                        }
 
-            if (ocrText.isNotBlank()) {
-                Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
-                Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp) {
-                    Text(text = ocrText, modifier = Modifier.padding(12.dp))
-                }
-            }
+                        if (nameSuggestions.isNotEmpty()) {
+                            SuggestionListCard(
+                                suggestions = nameSuggestions,
+                                onSuggestionSelected = { suggestion ->
+                                    title = suggestion.name
+                                    titleField = titleField.copy(text = suggestion.name, selection = TextRange(suggestion.name.length))
+                                    titleAutoFilled = true
 
-            Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
-            if (medicineInfo == null || title.isBlank()) {
-                Text(stringResource(R.string.trusted_medicine_info_hint))
-            } else {
-                MedicineInfoPreview(medicineInfo = medicineInfo!!)
-            }
+                                    if (suggestion.dosageHint.isNotBlank()) {
+                                        dosageText = suggestion.dosageHint
+                                        dosageField = dosageField.copy(text = suggestion.dosageHint, selection = TextRange(suggestion.dosageHint.length))
+                                        dosageAutoFilled = true
+                                    }
 
-            Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
-            when {
-                openFdaLoading -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CircularProgressIndicator()
-                        Text(stringResource(R.string.looking_up_label_information))
-                    }
-                }
-                openFdaInfo != null -> {
-                    OpenFdaInfoCard(openFdaInfo = openFdaInfo!!)
-                }
-                openFdaError != null -> {
-                    Text(openFdaError!!, style = MaterialTheme.typography.bodySmall)
-                }
-                else -> {
-                    Text(stringResource(R.string.openfda_hint))
-                }
-            }
+                                    nameSuggestions = emptyList()
+                                }
+                            )
+                        }
 
-            Button(
-                onClick = {
-                    scope.launch {
+                        OutlinedTextField(
+                            value = reminderTitle,
+                            onValueChange = { reminderTitle = it },
+                            label = { Text(stringResource(R.string.custom_reminder_title)) },
+                            supportingText = { Text(stringResource(R.string.custom_reminder_hint)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = dosageField,
+                            onValueChange = {
+                                dosageField = it
+                                dosageText = it.text
+                                dosageAutoFilled = false
+                            },
+                            label = { Text(stringResource(R.string.dosage_strength)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+                                focusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            trailingIcon = {
+                                androidx.compose.material3.IconButton(onClick = {
+                                    val t = dosageField.text
+                                    dosageField = dosageField.copy(selection = TextRange(0, t.length))
+                                }) {
+                                    androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
+                                }
+                            }
+                        )
+
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = {
+                                notes = it
+                                notesAutoFilled = false
+                            },
+                            label = { Text(stringResource(R.string.notes)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+                                focusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            maxLines = 5
+                        )
+
+                        Text(stringResource(R.string.repeat_days), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.repeat_days_hint), style = MaterialTheme.typography.bodySmall)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            weekdays.forEach { (dayNumber, dayLabel) ->
+                                FilterChip(
+                                    selected = selectedWeekdays.contains(dayNumber),
+                                    onClick = {
+                                        selectedWeekdays = if (selectedWeekdays.contains(dayNumber)) {
+                                            selectedWeekdays - dayNumber
+                                        } else {
+                                            selectedWeekdays + dayNumber
+                                        }
+                                    },
+                                    label = { Text(dayLabel) }
+                                )
+                            }
+                        }
+
+                        DoseTableSection(
+                            doseSlots = doseSlots,
+                            onToggleSlot = { index ->
+                                doseSlots[index] = doseSlots[index].copy(enabled = !doseSlots[index].enabled)
+                            },
+                            onPickSlotTime = { index ->
+                                openTimePicker(context) { hour, minute ->
+                                    doseSlots[index] = doseSlots[index].copy(time = formatTime(hour, minute), enabled = true)
+                                }
+                            }
+                        )
+
+                        Text(stringResource(R.string.food_relation), style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("none", "before_food", "after_food").forEach { option ->
+                                FilterChip(
+                                    selected = foodRelation == option,
+                                    onClick = { foodRelation = option },
+                                    label = { Text(option.replace('_', ' ')) }
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = endDate,
+                            onValueChange = { endDate = it },
+                            label = { Text(stringResource(R.string.end_date_optional)) },
+                            supportingText = { Text(stringResource(R.string.end_date_hint)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = stringResource(R.string.reminder_title_hint),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        if (ocrText.isNotBlank()) {
+                            Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
+                            Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp) {
+                                Text(text = ocrText, modifier = Modifier.padding(12.dp))
+                            }
+                        }
+
+                        Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
+                        if (medicineInfo == null || title.isBlank()) {
+                            Text(stringResource(R.string.trusted_medicine_info_hint))
+                        } else {
+                            MedicineInfoPreview(medicineInfo = medicineInfo!!)
+                        }
+
+                        Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
+                        when {
+                            openFdaLoading -> {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    CircularProgressIndicator()
+                                    Text(stringResource(R.string.looking_up_label_information))
+                                }
+                            }
+                            openFdaInfo != null -> {
+                                OpenFdaInfoCard(openFdaInfo = openFdaInfo!!)
+                            }
+                            openFdaError != null -> {
+                                Text(openFdaError!!, style = MaterialTheme.typography.bodySmall)
+                            }
+                            else -> {
+                                Text(stringResource(R.string.openfda_hint))
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                scope.launch {
                         runCatching {
                             val finalTitle = title.trim().ifBlank { ocrSuggestion.title.ifBlank { "Medicine" } }
                             val finalReminderTitle = reminderTitle.trim().ifBlank { finalTitle }
@@ -704,12 +735,29 @@ fun ScanAddScreen(
                             saveErrorMessage = error.message ?: "Failed to save medicine. Please try again."
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = (title.isNotBlank() || ocrSuggestion.title.isNotBlank()) && selectedWeekdays.isNotEmpty()
-            ) {
-                Text(stringResource(R.string.save_medicine))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = (title.isNotBlank() || ocrSuggestion.title.isNotBlank()) && selectedWeekdays.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.save_medicine))
+                        }
+                    }
+                }
             }
+
+            DraggableBackButton(
+                anchoredToRight = floatingButtonAnchorRight,
+                onAnchorChange = { floatingButtonAnchorRight = it },
+                onBack = {
+                    navController.navigate(Screen.Today.route) {
+                        launchSingleTop = true
+                        popUpTo(Screen.Today.route) { inclusive = false }
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            )
         }
     }
 }
@@ -884,6 +932,80 @@ private fun saveBitmapToCache(context: Context, bitmap: Bitmap): File {
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
     }
     return outputFile
+}
+
+@Composable
+private fun DraggableBackButton(
+    anchoredToRight: Boolean,
+    onAnchorChange: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var dragFraction by rememberSaveable(anchoredToRight) {
+        mutableStateOf(if (anchoredToRight) 1f else 0f)
+    }
+
+    LaunchedEffect(anchoredToRight) {
+        dragFraction = if (anchoredToRight) 1f else 0f
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(76.dp)
+    ) {
+        val buttonWidth = 176.dp
+        val horizontalPadding = 12.dp
+        val density = LocalDensity.current
+        val buttonWidthPx = with(density) { buttonWidth.toPx() }
+        val paddingPx = with(density) { horizontalPadding.toPx() }
+        val travelPx = (with(density) { maxWidth.toPx() } - buttonWidthPx - (paddingPx * 2f)).coerceAtLeast(0f)
+        val leftPositionPx = paddingPx + (travelPx * dragFraction)
+
+        Surface(
+            tonalElevation = 3.dp,
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(travelPx) {
+                        detectDragGestures(
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                if (travelPx > 0f) {
+                                    val currentPx = paddingPx + travelPx * dragFraction
+                                    val nextPx = (currentPx + dragAmount.x).coerceIn(paddingPx, paddingPx + travelPx)
+                                    dragFraction = (nextPx - paddingPx) / travelPx
+                                }
+                            },
+                            onDragEnd = {
+                                val snappedRight = dragFraction >= 0.5f
+                                dragFraction = if (snappedRight) 1f else 0f
+                                onAnchorChange(snappedRight)
+                            }
+                        )
+                    }
+            ) {
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .offset { IntOffset(leftPositionPx.toInt(), 0) }
+                        .align(Alignment.CenterStart)
+                        .width(buttonWidth)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back_to_main_screen)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.back_to_main_screen))
+                }
+            }
+        }
+    }
 }
 
 private fun parseIsoDateToMillis(value: String): Long? {

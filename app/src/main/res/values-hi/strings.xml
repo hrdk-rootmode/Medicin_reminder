@@ -66,6 +66,7 @@
     <string name="medicine_info">दवा जानकारी</string>
     <string name="no_trusted_medicine_info_found">इस नाम के लिए अभी कोई विश्वसनीय दवा जानकारी नहीं मिली। यहाँ दिखाने के लिए medicine_info.json में alias या entry जोड़ें।</string>
     <string name="today_title">आज की दवाएँ</string>
+    <string name="current_time_focus">अभी फोकस</string>
     <string name="no_medicines_yet">अभी कोई दवा नहीं</string>
     <string name="tap_add_medicine">अपनी पहली दवा जोड़ने के लिए दवा जोड़ें पर टैप करें</string>
     <string name="other_as_needed">अन्य / ज़रूरत अनुसार</string>
@@ -76,6 +77,9 @@
     <string name="taken">लिया गया</string>
     <string name="edit">संपादित करें</string>
     <string name="close">बंद करें</string>
+    <string name="capture">कैप्चर</string>
+    <string name="remove_image">छवि हटाएँ</string>
+    <string name="no_medicine_image">कोई छवि नहीं जोड़ी गई</string>
     <string name="bullet">•</string>
 
     <!-- Notifications -->
@@ -85,6 +89,7 @@
     <string name="notification_group_scheduled">%1$d दवाएँ निर्धारित</string>
     <string name="mark_all_taken">सभी लिया गया चिन्हित करें</string>
     <string name="open_app">ऐप खोलें</string>
+    <string name="back_to_main_screen">वापस</string>
     <string name="default_dosage">निर्देशानुसार</string>
     <string name="default_food_pref">कोई भोजन वरीयता नहीं</string>
     <string name="channel_description">%1$s दवा रिमाइंडर</string>

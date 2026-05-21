@@ -1,32 +1,61 @@
 package com.example.medicinreminder.ui.screens
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
 import com.example.medicinreminder.R
+import com.example.medicinreminder.data.entity.DoseLogEntity
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
-import com.example.medicinreminder.data.entity.DoseLogEntity
 import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.notifications.TimeOfDayPeriod
-import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +71,9 @@ fun TodayScreen(
     val scope = rememberCoroutineScope()
     var todayLogs by remember { mutableStateOf<List<DoseLogEntity>>(emptyList()) }
     var dayRefreshTick by remember { mutableIntStateOf(0) }
+    var timeRefreshTick by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+
     val periodOrder = remember {
         listOf(
             TimeOfDayPeriod.MORNING,
@@ -51,23 +83,108 @@ fun TodayScreen(
         )
     }
 
+    val currentPeriod = remember(timeRefreshTick) { currentTimePeriod() }
+
     val (todayStart, todayEnd) = remember(dayRefreshTick) { getTodayTimeRange() }
 
-    val schedulesByMedicine = remember(schedules) {
-        schedules.groupBy { it.medicineId }
-    }
+    val schedulesByMedicine = remember(schedules) { schedules.groupBy { it.medicineId } }
+    val todayLogsByMedicine = remember(todayLogs) { todayLogs.groupBy { it.medicineId } }
 
     val groupedMedicines = remember(medicines, schedulesByMedicine) {
         periodOrder.associateWith { period ->
             medicines.filter { medicine ->
-                schedulesByMedicine[medicine.id].orEmpty()
-                    .any { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+                schedulesByMedicine[medicine.id].orEmpty().any { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
             }
         }
     }
 
     val otherMedicines = remember(medicines, schedulesByMedicine) {
         medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() }
+    }
+
+    val periodSections = remember(medicines, schedulesByMedicine, todayLogsByMedicine) {
+        periodOrder.mapNotNull { period ->
+            val medicinesInPeriod = groupedMedicines[period].orEmpty()
+            if (medicinesInPeriod.isEmpty()) {
+                null
+            } else {
+                val medicineRows = medicinesInPeriod.map { medicine ->
+                    val periodSchedules = schedulesByMedicine[medicine.id].orEmpty().filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+                    TodayMedicineRow(
+                        medicine = medicine,
+                        schedules = periodSchedules,
+                        todayLogs = todayLogsByMedicine[medicine.id].orEmpty()
+                    )
+                }
+                val headerTime = medicineRows
+                    .asSequence()
+                    .flatMap { it.schedules.asSequence() }
+                    .map { it.timeOfDay }
+                    .sorted()
+                    .firstOrNull()
+                    ?.to12HourFormat()
+                    ?: "--"
+
+                TodayPeriodSection(
+                    period = period,
+                    headerTime = headerTime,
+                    medicineRows = medicineRows
+                )
+            }
+        }
+    }
+
+    val sectionAnchors = remember(periodSections, otherMedicines) {
+        val periodHeaderIndices = mutableMapOf<TimeOfDayPeriod, Int>()
+        var currentIndex = 1
+
+        periodSections.forEach { section ->
+            periodHeaderIndices[section.period] = currentIndex
+            currentIndex += 1 + section.medicineRows.size
+        }
+
+        SectionAnchors(
+            periodHeaderIndices = periodHeaderIndices,
+            otherHeaderIndex = if (otherMedicines.isNotEmpty()) currentIndex else null
+        )
+    }
+
+    val focusTarget = remember(currentPeriod, periodOrder, periodSections, otherMedicines) {
+        resolveFocusTarget(
+            currentPeriod = currentPeriod,
+            periodOrder = periodOrder,
+            availablePeriods = periodSections.map { it.period }.toSet(),
+            otherMedicines = otherMedicines
+        )
+    }
+
+    val focusHeaderIndex = remember(focusTarget, sectionAnchors) {
+        when (focusTarget) {
+            is FocusTarget.Other -> sectionAnchors.otherHeaderIndex
+            is FocusTarget.Period -> sectionAnchors.periodHeaderIndices[focusTarget.period]
+            null -> null
+        }
+    }
+
+    val focusedPeriod = when (focusTarget) {
+        is FocusTarget.Period -> focusTarget.period
+        else -> null
+    }
+
+    LaunchedEffect(focusHeaderIndex) {
+        val targetIndex = focusHeaderIndex ?: return@LaunchedEffect
+        if (listState.firstVisibleItemIndex != targetIndex) {
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val waitUntilMinute = 60_000L - (now % 60_000L)
+            delay(waitUntilMinute + 250L)
+            timeRefreshTick++
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -84,7 +201,7 @@ fun TodayScreen(
             todayLogs = logs
         }
     }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -147,56 +264,57 @@ fun TodayScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
+                state = listState,
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                periodOrder.forEach { period ->
-                    val medicinesInPeriod = groupedMedicines[period].orEmpty()
-                    if (medicinesInPeriod.isNotEmpty()) {
-                        val periodSchedules = medicinesInPeriod.flatMap { medicine ->
-                            schedulesByMedicine[medicine.id].orEmpty()
-                                .filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
-                        }
-                        val headerTime = periodSchedules
-                            .map { it.timeOfDay }
-                            .sorted()
-                            .firstOrNull()
-                            ?.to12HourFormat()
-                            ?: "--"
+                item(key = "current_period_banner") {
+                    CurrentPeriodBanner(
+                        currentPeriod = currentPeriod,
+                        focusPeriod = focusedPeriod ?: currentPeriod
+                    )
+                }
 
-                        item(key = "header_${period.name}") {
-                            PeriodHeader(
-                                title = period.displayName,
-                                time = headerTime,
-                                count = medicinesInPeriod.size
-                            )
-                        }
+                periodSections.forEach { section ->
+                    val isFocusedPeriod = section.period == focusedPeriod
 
-                        items(items = medicinesInPeriod, key = { "${period.name}_${it.id}" }) { medicine ->
-                            MedicineCard(
-                                medicine = medicine,
-                                schedules = schedulesByMedicine[medicine.id].orEmpty()
-                                    .filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period },
-                                todayLogs = todayLogs.filter { it.medicineId == medicine.id },
-                                onClick = { selectedMedicine = medicine },
-                                onMarkTaken = { scheduleId, isTaken ->
-                                    scope.launch {
-                                        val log = DoseLogEntity(
-                                            medicineId = medicine.id,
-                                            scheduleId = scheduleId,
-                                            scheduledAt = System.currentTimeMillis(),
-                                            actionTaken = if (isTaken) "TAKEN" else "SKIPPED"
-                                        )
-                                        appContainer.reminderRepository.insertLog(log)
-                                    }
-                                },
-                                onToggleArchive = {
-                                    scope.launch {
-                                        appContainer.medicineRepository.archiveMedicine(medicine.id)
-                                    }
+                    item(key = "header_${section.period.name}") {
+                        PeriodHeader(
+                            title = section.period.displayName,
+                            time = section.headerTime,
+                            count = section.medicineRows.size,
+                            isCurrent = isFocusedPeriod
+                        )
+                    }
+
+                    items(
+                        items = section.medicineRows,
+                        key = { "${section.period.name}_${it.medicine.id}" },
+                        contentType = { "medicine_card" }
+                    ) { row ->
+                        MedicineCard(
+                            medicine = row.medicine,
+                            schedules = row.schedules,
+                            todayLogs = row.todayLogs,
+                            isDimmed = section.period != focusedPeriod,
+                            onClick = { selectedMedicine = row.medicine },
+                            onMarkTaken = { scheduleId, isTaken ->
+                                scope.launch {
+                                    val log = DoseLogEntity(
+                                        medicineId = row.medicine.id,
+                                        scheduleId = scheduleId,
+                                        scheduledAt = System.currentTimeMillis(),
+                                        actionTaken = if (isTaken) "TAKEN" else "SKIPPED"
+                                    )
+                                    appContainer.reminderRepository.insertLog(log)
                                 }
-                            )
-                        }
+                            },
+                            onToggleArchive = {
+                                scope.launch {
+                                    appContainer.medicineRepository.archiveMedicine(row.medicine.id)
+                                }
+                            }
+                        )
                     }
                 }
 
@@ -205,14 +323,20 @@ fun TodayScreen(
                         PeriodHeader(
                             title = stringResource(R.string.other_as_needed),
                             time = "--",
-                            count = otherMedicines.size
+                            count = otherMedicines.size,
+                            isCurrent = false
                         )
                     }
-                    items(items = otherMedicines, key = { "other_${it.id}" }) { medicine ->
+                    items(
+                        items = otherMedicines,
+                        key = { "other_${it.id}" },
+                        contentType = { "other_medicine_card" }
+                    ) { medicine ->
                         MedicineCard(
                             medicine = medicine,
                             schedules = emptyList(),
-                            todayLogs = todayLogs.filter { it.medicineId == medicine.id },
+                            todayLogs = todayLogsByMedicine[medicine.id].orEmpty(),
+                            isDimmed = true,
                             onClick = { selectedMedicine = medicine },
                             onMarkTaken = { _, _ -> },
                             onToggleArchive = {
@@ -254,19 +378,61 @@ fun TodayScreen(
 }
 
 @Composable
-private fun PeriodHeader(title: String, time: String, count: Int) {
+private fun CurrentPeriodBanner(currentPeriod: TimeOfDayPeriod, focusPeriod: TimeOfDayPeriod) {
     Surface(
-        tonalElevation = 2.dp,
+        tonalElevation = 3.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = stringResource(R.string.period_header, title, time, count),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.current_time_focus),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = focusPeriod.displayName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (focusPeriod != currentPeriod) {
+                Text(
+                    text = currentPeriod.displayName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodHeader(title: String, time: String, count: Int, isCurrent: Boolean) {
+    Surface(
+        tonalElevation = if (isCurrent) 5.dp else 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.period_header, title, time, count),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (isCurrent) {
+                Text(
+                    text = stringResource(R.string.current_time_focus),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
     }
 }
 
@@ -275,13 +441,18 @@ fun MedicineCard(
     medicine: MedicineEntity,
     schedules: List<ReminderScheduleEntity>,
     todayLogs: List<DoseLogEntity> = emptyList(),
+    isDimmed: Boolean = false,
     onClick: () -> Unit,
     onMarkTaken: (Long, Boolean) -> Unit = { _, _ -> },
     onToggleArchive: () -> Unit = {}
 ) {
-    val cardAlpha = if (medicine.isArchived) 0.5f else 1f
+    val cardAlpha = when {
+        medicine.isArchived -> 0.45f
+        isDimmed -> 0.58f
+        else -> 1f
+    }
     val cardColor = if (medicine.isArchived) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -290,9 +461,7 @@ fun MedicineCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -333,15 +502,12 @@ fun MedicineCard(
                     }
                 }
                 if (medicine.isArchived) {
-                    Button(
-                        onClick = onToggleArchive,
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
+                    Button(onClick = onToggleArchive, modifier = Modifier.padding(start = 4.dp)) {
                         Text(stringResource(R.string.enable))
                     }
                 }
             }
-            
+
             if (medicine.notes.isNotEmpty()) {
                 Text(
                     text = medicine.notes,
@@ -349,7 +515,7 @@ fun MedicineCard(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            
+
             if (schedules.isNotEmpty()) {
                 DoseTableCard(
                     schedules = schedules,
@@ -379,12 +545,11 @@ private fun DoseTableCard(
     val schedulesByPeriod = dosePeriods.associateWith { period ->
         schedules.filter { it.timeOfDay.getDosePeriodForTime() == period }
     }
-    
+
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.dose_table), style = MaterialTheme.typography.titleSmall)
-            
-            // Table header
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -401,8 +566,7 @@ private fun DoseTableCard(
                     )
                 }
             }
-            
-            // Enabled row
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -426,8 +590,7 @@ private fun DoseTableCard(
                     }
                 }
             }
-            
-            // Time row
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -447,8 +610,7 @@ private fun DoseTableCard(
                     }
                 }
             }
-            
-            // Taken row
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -464,15 +626,23 @@ private fun DoseTableCard(
                             val isTaken = todayLogs.any { it.scheduleId == schedule.id && it.actionTaken == "TAKEN" }
                             Checkbox(
                                 checked = isTaken,
-                                onCheckedChange = { checked ->
-                                    onMarkTaken(schedule.id, checked)
-                                }
+                                onCheckedChange = { checked -> onMarkTaken(schedule.id, checked) }
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private fun currentTimePeriod(): TimeOfDayPeriod {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return when {
+        hour in 5..11 -> TimeOfDayPeriod.MORNING
+        hour in 12..16 -> TimeOfDayPeriod.AFTERNOON
+        hour in 17..20 -> TimeOfDayPeriod.EVENING
+        else -> TimeOfDayPeriod.NIGHT
     }
 }
 
@@ -487,4 +657,63 @@ private fun millisUntilNextMidnight(): Long {
         set(Calendar.MILLISECOND, 0)
     }
     return (calendar.timeInMillis - now).coerceAtLeast(60_000L)
+}
+
+private fun resolveFocusTarget(
+    currentPeriod: TimeOfDayPeriod,
+    periodOrder: List<TimeOfDayPeriod>,
+    availablePeriods: Set<TimeOfDayPeriod>,
+    otherMedicines: List<MedicineEntity>
+): FocusTarget? {
+    if (currentPeriod in availablePeriods) {
+        return FocusTarget.Period(currentPeriod)
+    }
+
+    val currentIndex = periodOrder.indexOf(currentPeriod)
+    if (currentIndex >= 0) {
+        val previousAvailable = periodOrder
+            .take(currentIndex + 1)
+            .asReversed()
+            .firstOrNull { it in availablePeriods }
+        if (previousAvailable != null) {
+            return FocusTarget.Period(previousAvailable)
+        }
+
+        val nextAvailable = periodOrder
+            .drop(currentIndex + 1)
+            .firstOrNull { it in availablePeriods }
+        if (nextAvailable != null) {
+            return FocusTarget.Period(nextAvailable)
+        }
+    }
+
+    if (otherMedicines.isNotEmpty()) {
+        return FocusTarget.Other
+    }
+
+    return periodOrder.firstOrNull { it in availablePeriods }?.let {
+        FocusTarget.Period(it)
+    }
+}
+
+private data class TodayPeriodSection(
+    val period: TimeOfDayPeriod,
+    val headerTime: String,
+    val medicineRows: List<TodayMedicineRow>
+)
+
+private data class TodayMedicineRow(
+    val medicine: MedicineEntity,
+    val schedules: List<ReminderScheduleEntity>,
+    val todayLogs: List<DoseLogEntity>
+)
+
+private data class SectionAnchors(
+    val periodHeaderIndices: Map<TimeOfDayPeriod, Int>,
+    val otherHeaderIndex: Int?
+)
+
+private sealed interface FocusTarget {
+    data class Period(val period: TimeOfDayPeriod) : FocusTarget
+    data object Other : FocusTarget
 }
