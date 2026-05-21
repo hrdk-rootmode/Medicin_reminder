@@ -22,10 +22,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.example.medicinreminder.R
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.repository.MedicineInfoRepository
@@ -65,12 +67,12 @@ fun MedicineDetailDialog(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(text = "Medicine details", style = MaterialTheme.typography.headlineSmall)
+                Text(text = stringResource(R.string.medicine_details_screen), style = MaterialTheme.typography.headlineSmall)
 
                 if (imageUri.isNotBlank()) {
                     AsyncImage(
                         model = imageUri,
-                        contentDescription = "Medicine photo",
+                        contentDescription = stringResource(R.string.medicine_photo),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -78,67 +80,67 @@ fun MedicineDetailDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Medicine name") },
+                    label = { Text(stringResource(R.string.medicine_name)) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = reminderTitle,
                     onValueChange = { reminderTitle = it },
-                    label = { Text("Custom reminder title") },
-                    supportingText = { Text("This is what the reminder will speak.") },
+                    label = { Text(stringResource(R.string.custom_reminder_title)) },
+                    supportingText = { Text(stringResource(R.string.custom_reminder_hint)) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = dosageText,
                     onValueChange = { dosageText = it },
-                    label = { Text("Dosage / strength") },
+                    label = { Text(stringResource(R.string.dosage_strength)) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes") },
+                    label = { Text(stringResource(R.string.notes)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
 
-                Text(text = "Schedules", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.schedules), style = MaterialTheme.typography.titleMedium)
                 if (schedules.isEmpty()) {
-                    Text("No reminder schedules saved.")
+                    Text(stringResource(R.string.no_reminder_schedules_saved))
                 } else {
                     schedules.forEach { schedule ->
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(schedule.toReadableSummary())
-                                Text("Days: ${schedule.repeatDays.toReadableDays()}")
-                                Text("Food relation: ${schedule.foodRelation.toReadableFoodRelation()}")
-                                Text(if (schedule.isActive) "Active" else "Paused")
+                                Text(stringResource(R.string.days_prefix, schedule.repeatDays.toReadableDays()))
+                                Text(stringResource(R.string.food_relation_prefix, schedule.foodRelation.toReadableFoodRelation()))
+                                Text(if (schedule.isActive) stringResource(R.string.active) else stringResource(R.string.paused))
                             }
                         }
                     }
                 }
 
-                Text(text = "Medicine info", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.medicine_info), style = MaterialTheme.typography.titleMedium)
                 if (info == null) {
-                    Text("No trusted medicine info found for this title yet. Add an alias or entry to app/src/main/assets/medicine_info.json if you want it to show here.")
+                    Text(stringResource(R.string.no_trusted_medicine_info_found))
                 } else {
                     Text(info!!.displayName, style = MaterialTheme.typography.titleLarge)
-                    Text("Uses: ${info!!.commonUses.joinToString()}")
-                    Text("Side effects: ${info!!.commonSideEffects.joinToString()}")
-                    Text("Warnings: ${info!!.warnings.joinToString()}")
-                    Text("Storage: ${info!!.storageGuidance}")
+                    Text(stringResource(R.string.uses_prefix, info!!.commonUses.joinToString()))
+                    Text(stringResource(R.string.side_effects_prefix, info!!.commonSideEffects.joinToString()))
+                    Text(stringResource(R.string.warnings_prefix, info!!.warnings.joinToString()))
+                    Text(stringResource(R.string.storage_guidance) + ": ${info!!.storageGuidance}")
                     Text(info!!.disclaimer, style = MaterialTheme.typography.bodySmall)
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onArchive, modifier = Modifier.weight(1f)) {
-                        Text(if (medicine.isArchived) "Enable" else "Disable")
+                        Text(if (medicine.isArchived) stringResource(R.string.enable) else stringResource(R.string.disable))
                     }
                     OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                        Text("Edit")
+                        Text(stringResource(R.string.edit))
                     }
                     Button(
                         onClick = {
@@ -155,12 +157,12 @@ fun MedicineDetailDialog(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Save")
+                        Text(stringResource(R.string.save))
                     }
                 }
 
                 TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Close")
+                    Text(stringResource(R.string.close))
                 }
             }
         }

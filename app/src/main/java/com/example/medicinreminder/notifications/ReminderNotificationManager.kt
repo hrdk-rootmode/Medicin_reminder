@@ -30,7 +30,7 @@ class ReminderNotificationManager(private val context: Context) {
                     period.channelName,
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Notifications for ${period.displayName.lowercase()} medicine reminders"
+                    description = context.getString(R.string.channel_description, period.displayName)
                     enableVibration(true)
                     enableLights(true)
                 }
@@ -53,8 +53,8 @@ class ReminderNotificationManager(private val context: Context) {
         
         val notification = NotificationCompat.Builder(context, TimeOfDayPeriod.MORNING.channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Medicine Reminder")
-            .setContentText("Time to take $medicineName - $dosage")
+            .setContentTitle(context.getString(R.string.notification_medicine_reminder_title))
+            .setContentText(context.getString(R.string.notification_time_to_take, medicineName, dosage))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -92,20 +92,23 @@ class ReminderNotificationManager(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val bullet = context.getString(R.string.bullet)
+        val defaultDosage = context.getString(R.string.default_dosage)
+        val defaultFood = context.getString(R.string.default_food_pref)
         val bigTextBody = medicines.joinToString("\n") {
-            "• ${it.name} ${it.dosage.ifBlank { "As prescribed" }} — ${it.foodRelation.ifBlank { "No food preference" }}"
+            "$bullet ${it.name} ${it.dosage.ifBlank { defaultDosage }} — ${it.foodRelation.ifBlank { defaultFood }}"
         }
 
         val notification = NotificationCompat.Builder(context, period.channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("${period.displayName} Medicines — Time to take your doses")
-            .setContentText("${medicines.size} medicines scheduled")
+            .setContentTitle(context.getString(R.string.notification_group_title, period.displayName))
+            .setContentText(context.getString(R.string.notification_group_scheduled, medicines.size))
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigTextBody))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(openAppPendingIntent)
-            .addAction(0, "Mark All Taken", markAllPendingIntent)
-            .addAction(0, "Open App", openAppPendingIntent)
+            .addAction(0, context.getString(R.string.mark_all_taken), markAllPendingIntent)
+            .addAction(0, context.getString(R.string.open_app), openAppPendingIntent)
             .build()
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -34,8 +34,8 @@ class BootRescheduleWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, TimeOfDayPeriod.MORNING.channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Restoring reminders")
-            .setContentText("Medicine reminders are being restored")
+            .setContentTitle(applicationContext.getString(com.example.medicinreminder.R.string.restoring_reminders))
+            .setContentText(applicationContext.getString(com.example.medicinreminder.R.string.restoring_reminders_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         return ForegroundInfo(9999, notification)

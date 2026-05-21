@@ -4,11 +4,18 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.util.Log
+import android.provider.Settings
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,30 +24,41 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.os.LocaleListCompat
 import com.example.medicinreminder.billing.BillingManager
 import com.example.medicinreminder.data.repository.AppContainer
+import com.example.medicinreminder.data.settings.LanguagePreferences
 import com.example.medicinreminder.data.worker.MedicineSyncScheduler
+import com.example.medicinreminder.R
 import com.example.medicinreminder.ui.navigation.AppNavigation
 import com.example.medicinreminder.ui.theme.MedicinReminderTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.util.Log
-import android.provider.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.runBlocking
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     private lateinit var appContainer: AppContainer
     private val tag = "MainActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        runBlocking(Dispatchers.IO) {
+            val savedLanguageTag = LanguagePreferences.getLanguageTag(applicationContext)
+            AppCompatDelegate.setApplicationLocales(
+                if (savedLanguageTag.isNullOrBlank()) {
+                    LocaleListCompat.getEmptyLocaleList()
+                } else {
+                    LocaleListCompat.forLanguageTags(savedLanguageTag)
+                }
+            )
+        }
+
+        super.onCreate(savedInstanceState)
         
         try {
             appContainer = AppContainer(application)
@@ -122,8 +140,8 @@ fun MedicineReminderApp(appContainer: AppContainer) {
     if (showExactAlarmDialog) {
         AlertDialog(
             onDismissRequest = { showExactAlarmDialog = false },
-            title = { Text("Allow medicine reminders") },
-            text = { Text("Exact alarms are needed so medicine notifications and repeat alerts can ring on time.") },
+            title = { Text(stringResource(R.string.allow_medicine_reminders_title)) },
+            text = { Text(stringResource(R.string.allow_medicine_reminders_message)) },
             confirmButton = {
                 Button(onClick = {
                     showExactAlarmDialog = false
@@ -131,12 +149,12 @@ fun MedicineReminderApp(appContainer: AppContainer) {
                         exactAlarmLauncher.launch(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
                     }
                 }) {
-                    Text("Allow")
+                    Text(stringResource(R.string.allow))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExactAlarmDialog = false }) {
-                    Text("Later")
+                    Text(stringResource(R.string.later))
                 }
             }
         )

@@ -12,15 +12,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import com.example.medicinreminder.R
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.entity.UserEntitlementEntity
 import com.example.medicinreminder.data.repository.AppContainer
+import com.example.medicinreminder.data.settings.LanguagePreferences
 import com.example.medicinreminder.notifications.ReminderScheduler
 import com.example.medicinreminder.notifications.TimeOfDayPeriod
+import com.example.medicinreminder.ui.model.LocaleOption
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
@@ -38,6 +44,18 @@ fun MyMedicinesScreen(
     var selectedMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var alertSettingsMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var pendingDisableMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var selectedLanguageTag by remember { mutableStateOf<String?>(null) }
+    val languageOptions = remember {
+        listOf(
+            LocaleOption(null, R.string.language_system_default),
+            LocaleOption("en", R.string.language_english),
+            LocaleOption("hi", R.string.language_hindi),
+            LocaleOption("ta", R.string.language_tamil),
+            LocaleOption("te", R.string.language_telugu),
+            LocaleOption("mr", R.string.language_marathi)
+        )
+    }
     val periodOrder = remember {
         listOf(
             TimeOfDayPeriod.MORNING,
@@ -58,11 +76,23 @@ fun MyMedicinesScreen(
     val otherMedicines = remember(medicines, schedulesByMedicine) {
         medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() }
     }
+
+    LaunchedEffect(Unit) {
+        selectedLanguageTag = LanguagePreferences.getLanguageTag(context)
+    }
+
+    val selectedLanguageLabelRes = languageOptions.firstOrNull { it.tag == selectedLanguageTag }?.labelRes
+        ?: R.string.language_system_default
     
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Medicines") }
+                title = { Text(stringResource(R.string.my_medicines_title)) },
+                actions = {
+                    TextButton(onClick = { showLanguageDialog = true }) {
+                        Text(stringResource(R.string.language_picker_action))
+                    }
+                }
             )
         },
         bottomBar = {
@@ -70,20 +100,20 @@ fun MyMedicinesScreen(
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate("today") },
-                    icon = { Text("Today") },
-                    label = { Text("Today") }
+                    icon = { Text(stringResource(R.string.today_tab)) },
+                    label = { Text(stringResource(R.string.today_tab)) }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate("scan_add") },
-                    icon = { Text("Add") },
-                    label = { Text("Add Medicine") }
+                    icon = { Text(stringResource(R.string.add_tab)) },
+                    label = { Text(stringResource(R.string.add_tab)) }
                 )
                 NavigationBarItem(
                     selected = true,
                     onClick = { },
-                    icon = { Text("My") },
-                    label = { Text("My Medicines") }
+                    icon = { Text(stringResource(R.string.my_medicines_tab)) },
+                    label = { Text(stringResource(R.string.my_medicines_tab)) }
                 )
             }
         }
@@ -96,6 +126,18 @@ fun MyMedicinesScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.language_picker_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.language_picker_current, stringResource(selectedLanguageLabelRes)), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { showLanguageDialog = true }) {
+                            Text(stringResource(R.string.language_picker_action))
+                        }
+                    }
+                }
+            }
+
+            item {
                 EntitlementCard(
                     entitlement = entitlement,
                     onUpgradeClick = { /* TODO: Launch billing flow */ },
@@ -105,7 +147,7 @@ fun MyMedicinesScreen(
             
             item {
                 Text(
-                    text = "My Medicines",
+                    text = stringResource(R.string.my_medicines_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -119,7 +161,7 @@ fun MyMedicinesScreen(
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No medicines added yet")
+                        Text(stringResource(R.string.no_medicines_added_yet))
                     }
                 }
             } else {
@@ -133,7 +175,7 @@ fun MyMedicinesScreen(
                             )
                         }
 
-                        items(items = medicinesInPeriod, key = { it.id }) { medicine ->
+                        items(items = medicinesInPeriod, key = { "${period.name}_${it.id}" }) { medicine ->
                             MedicineLibraryCard(
                                 medicine = medicine,
                                 schedules = schedulesByMedicine[medicine.id].orEmpty()
@@ -156,7 +198,7 @@ fun MyMedicinesScreen(
                     item(key = "header_other") {
                         MedicineCategoryHeader(title = "Other / As Needed", count = otherMedicines.size)
                     }
-                    items(items = otherMedicines, key = { it.id }) { medicine ->
+                    items(items = otherMedicines, key = { "other_${it.id}" }) { medicine ->
                         MedicineLibraryCard(
                             medicine = medicine,
                             schedules = emptyList(),
@@ -179,8 +221,8 @@ fun MyMedicinesScreen(
     pendingDisableMedicine?.let { medicine ->
         AlertDialog(
             onDismissRequest = { pendingDisableMedicine = null },
-            title = { Text("Disable medicine") },
-            text = { Text("Disable ${medicine.title}? This will stop its active reminders until you enable it again.") },
+            title = { Text(stringResource(R.string.disable_medicine_title)) },
+            text = { Text(stringResource(R.string.disable_medicine_message, medicine.title)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -188,12 +230,49 @@ fun MyMedicinesScreen(
                         pendingDisableMedicine = null
                     }
                 }) {
-                    Text("Disable")
+                    Text(stringResource(R.string.disable))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDisableMedicine = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.language_picker_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    languageOptions.forEach { option ->
+                        TextButton(onClick = {
+                            selectedLanguageTag = option.tag
+                            scope.launch {
+                                LanguagePreferences.setLanguageTag(context, option.tag)
+                                AppCompatDelegate.setApplicationLocales(
+                                    if (option.tag.isNullOrBlank()) {
+                                        LocaleListCompat.getEmptyLocaleList()
+                                    } else {
+                                        LocaleListCompat.forLanguageTags(option.tag)
+                                    }
+                                )
+                                // Recreate the hosting Activity so resources and Compose recompose
+                                (context as? android.app.Activity)?.recreate()
+                                showLanguageDialog = false
+                            }
+                        }) {
+                            Text(stringResource(option.labelRes))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -243,12 +322,12 @@ fun MyMedicinesScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Alert settings for ${medicine.title}",
+                    text = stringResource(R.string.alert_settings_for, medicine.title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
 
-                Text("Repeat alert: ${repeatCount.toInt()} times")
+                Text(stringResource(R.string.repeat_alert_times, repeatCount.toInt()))
                 Slider(
                     value = repeatCount,
                     onValueChange = { repeatCount = it },
@@ -258,8 +337,8 @@ fun MyMedicinesScreen(
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Spoken reminder")
-                        Text("Use TextToSpeech for this medicine group.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.spoken_reminder))
+                        Text(stringResource(R.string.spoken_reminder_hint), style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = spokenEnabled, onCheckedChange = { spokenEnabled = it })
                 }
@@ -282,14 +361,14 @@ fun MyMedicinesScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.save))
                 }
 
                 TextButton(
                     onClick = { alertSettingsMedicine = null },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }
@@ -315,13 +394,13 @@ fun EntitlementCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = if (entitlement?.isPremium == true) "Premium Active" else "Free Plan",
+                text = if (entitlement?.isPremium == true) stringResource(R.string.premium_active) else stringResource(R.string.free_plan),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Active reminders: ${entitlement?.activeReminderLimit ?: 5}",
+                text = stringResource(R.string.active_reminders, entitlement?.activeReminderLimit ?: 5),
                 style = MaterialTheme.typography.bodyMedium
             )
             if (entitlement?.isPremium == false) {
@@ -330,19 +409,19 @@ fun EntitlementCard(
                     onClick = onUpgradeClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Upgrade to Premium")
+                    Text(stringResource(R.string.upgrade_to_premium))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(
                     onClick = onRestoreClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Restore Purchase")
+                    Text(stringResource(R.string.restore_purchase))
                 }
             } else {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Thank you for supporting us!",
+                    text = stringResource(R.string.thanks_for_supporting_us),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -390,7 +469,7 @@ fun MedicineLibraryCard(
                         )
                         if (isArchived) {
                             Text(
-                                text = "Disabled",
+                                text = stringResource(R.string.disabled),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -426,10 +505,10 @@ fun MedicineLibraryCard(
                 horizontalArrangement = Arrangement.End
             ) {
                 IconButton(onClick = onAlertSettingsClick) {
-                    Icon(imageVector = Icons.Filled.Settings, contentDescription = "Alert settings")
+                    Icon(imageVector = Icons.Filled.Settings, contentDescription = stringResource(R.string.language_picker_title))
                 }
                 TextButton(onClick = if (isArchived) onEnable else onDisableRequest) {
-                    Text(if (isArchived) "Enable" else "Disable")
+                    Text(if (isArchived) stringResource(R.string.enable) else stringResource(R.string.disable))
                 }
             }
         }
@@ -440,7 +519,7 @@ fun MedicineLibraryCard(
 private fun MedicineCategoryHeader(title: String, count: Int) {
     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "$title · $count medicines",
+            text = stringResource(R.string.medicine_category_header, title, count),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier

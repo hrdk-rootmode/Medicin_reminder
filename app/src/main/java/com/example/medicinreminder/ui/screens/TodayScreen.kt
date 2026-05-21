@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -87,10 +88,10 @@ fun TodayScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Today's Medicines") },
+                title = { Text(stringResource(R.string.today_title)) },
                 actions = {
                     Text(
-                        text = "$activeReminderCount active reminders",
+                        text = stringResource(R.string.active_reminders_suffix, activeReminderCount),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(end = 16.dp)
                     )
@@ -102,20 +103,20 @@ fun TodayScreen(
                 NavigationBarItem(
                     selected = true,
                     onClick = { },
-                    icon = { Text("Today") },
-                    label = { Text("Today") }
+                    icon = { Text(stringResource(R.string.today_tab)) },
+                    label = { Text(stringResource(R.string.today_tab)) }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate("scan_add") },
-                    icon = { Text("Add") },
-                    label = { Text("Add Medicine") }
+                    icon = { Text(stringResource(R.string.add_tab)) },
+                    label = { Text(stringResource(R.string.add_tab)) }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate("my_medicines") },
-                    icon = { Text("My") },
-                    label = { Text("My Medicines") }
+                    icon = { Text(stringResource(R.string.my_medicines_tab)) },
+                    label = { Text(stringResource(R.string.my_medicines_tab)) }
                 )
             }
         }
@@ -132,11 +133,11 @@ fun TodayScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "No medicines yet",
+                        text = stringResource(R.string.no_medicines_yet),
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Text(
-                        text = "Tap 'Add Medicine' to add your first medicine",
+                        text = stringResource(R.string.tap_add_medicine),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -171,7 +172,7 @@ fun TodayScreen(
                             )
                         }
 
-                        items(items = medicinesInPeriod, key = { it.id }) { medicine ->
+                        items(items = medicinesInPeriod, key = { "${period.name}_${it.id}" }) { medicine ->
                             MedicineCard(
                                 medicine = medicine,
                                 schedules = schedulesByMedicine[medicine.id].orEmpty()
@@ -202,12 +203,12 @@ fun TodayScreen(
                 if (otherMedicines.isNotEmpty()) {
                     item(key = "header_other") {
                         PeriodHeader(
-                            title = "Other / As Needed",
+                            title = stringResource(R.string.other_as_needed),
                             time = "--",
                             count = otherMedicines.size
                         )
                     }
-                    items(items = otherMedicines, key = { it.id }) { medicine ->
+                    items(items = otherMedicines, key = { "other_${it.id}" }) { medicine ->
                         MedicineCard(
                             medicine = medicine,
                             schedules = emptyList(),
@@ -259,7 +260,7 @@ private fun PeriodHeader(title: String, time: String, count: Int) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "$title · $time · $count medicines",
+            text = stringResource(R.string.period_header, title, time, count),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
@@ -300,7 +301,7 @@ fun MedicineCard(
                 if (!medicine.imageUri.isNullOrBlank()) {
                     AsyncImage(
                         model = medicine.imageUri,
-                        contentDescription = "${medicine.title} image",
+                        contentDescription = stringResource(R.string.medicine_image_desc, medicine.title),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(64.dp)
@@ -309,7 +310,7 @@ fun MedicineCard(
                 } else {
                     androidx.compose.foundation.Image(
                         painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                        contentDescription = "Medicine placeholder",
+                        contentDescription = stringResource(R.string.medicine_placeholder),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(64.dp)
@@ -336,7 +337,7 @@ fun MedicineCard(
                         onClick = onToggleArchive,
                         modifier = Modifier.padding(start = 4.dp)
                     ) {
-                        Text("Enable")
+                        Text(stringResource(R.string.enable))
                     }
                 }
             }
@@ -358,7 +359,7 @@ fun MedicineCard(
                 )
             } else {
                 Text(
-                    text = "No schedule saved",
+                    text = stringResource(R.string.no_schedule_saved),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -381,7 +382,7 @@ private fun DoseTableCard(
     
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Dose table", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.dose_table), style = MaterialTheme.typography.titleSmall)
             
             // Table header
             Row(
@@ -409,13 +410,13 @@ private fun DoseTableCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Enabled", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.enabled), modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
                 dosePeriods.forEach { period ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         if (schedulesByPeriod[period]?.isNotEmpty() == true) {
                             Icon(
                                 imageVector = Icons.Filled.Check,
-                                contentDescription = "Enabled",
+                                contentDescription = stringResource(R.string.enabled),
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -434,7 +435,7 @@ private fun DoseTableCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Time", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.time), modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
                 dosePeriods.forEach { period ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         val schedule = schedulesByPeriod[period]?.firstOrNull()
@@ -455,7 +456,7 @@ private fun DoseTableCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Taken", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.taken), modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelSmall)
                 dosePeriods.forEach { period ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         val schedule = schedulesByPeriod[period]?.firstOrNull()

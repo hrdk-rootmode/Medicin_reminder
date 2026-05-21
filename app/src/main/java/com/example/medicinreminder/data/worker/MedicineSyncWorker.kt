@@ -127,8 +127,8 @@ class MedicineSyncWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, TimeOfDayPeriod.MORNING.channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Syncing medicines")
-            .setContentText("Updating medicine database from FDA")
+            .setContentTitle(applicationContext.getString(com.example.medicinreminder.R.string.syncing_medicines))
+            .setContentText(applicationContext.getString(com.example.medicinreminder.R.string.syncing_medicines_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         return ForegroundInfo(9998, notification)

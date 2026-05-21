@@ -58,9 +58,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.example.medicinreminder.R
 import com.example.medicinreminder.data.api.OpenFDAClient
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
@@ -132,6 +134,7 @@ fun ScanAddScreen(
     var nameSuggestions by remember { mutableStateOf<List<MedicineNameSuggestion>>(emptyList()) }
     var suggestionLoading by remember { mutableStateOf(false) }
     var ocrValidationMessage by remember { mutableStateOf<String?>(null) }
+    var saveErrorMessage by remember { mutableStateOf<String?>(null) }
     var titleAutoFilled by remember { mutableStateOf(false) }
     var dosageAutoFilled by remember { mutableStateOf(false) }
     var notesAutoFilled by remember { mutableStateOf(false) }
@@ -341,24 +344,37 @@ fun ScanAddScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Add Medicine") }) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.add_medicine_title)) }) }
     ) { paddingValues ->
+        saveErrorMessage?.let { message ->
+            AlertDialog(
+                onDismissRequest = { saveErrorMessage = null },
+                title = { Text(stringResource(R.string.add_medicine_title)) },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = { saveErrorMessage = null }) {
+                        Text(stringResource(R.string.close))
+                    }
+                }
+            )
+        }
+
         ocrValidationMessage?.let { message ->
             AlertDialog(
                 onDismissRequest = { ocrValidationMessage = null },
-                title = { Text("Scan validation") },
+                title = { Text(stringResource(R.string.scan_validation_title)) },
                 text = { Text(message) },
                 confirmButton = {
                     TextButton(onClick = {
                         ocrValidationMessage = null
                         cameraAction()
                     }) {
-                        Text("Retry Scan")
+                        Text(stringResource(R.string.retry_scan))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { ocrValidationMessage = null }) {
-                        Text("Enter Manually")
+                        Text(stringResource(R.string.enter_manually))
                     }
                 }
             )
@@ -372,18 +388,18 @@ fun ScanAddScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Scan or add quickly", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.scan_or_add_quickly), style = MaterialTheme.typography.headlineSmall)
             Text(
-                "Use camera or gallery to scan a pack. Auto fill stays conservative so the wrong medicine name is less likely to be saved.",
+                stringResource(R.string.scan_or_add_quickly_desc),
                 style = MaterialTheme.typography.bodySmall
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = cameraAction, modifier = Modifier.weight(1f)) {
-                    Text("Camera scan")
+                    Text(stringResource(R.string.camera_scan))
                 }
                 OutlinedButton(onClick = { galleryLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
-                    Text("Gallery")
+                    Text(stringResource(R.string.gallery))
                 }
             }
 
@@ -401,7 +417,7 @@ fun ScanAddScreen(
                 ) {
                     AsyncImage(
                         model = uri,
-                        contentDescription = "Selected medicine image",
+                        contentDescription = stringResource(R.string.selected_medicine_image),
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -414,8 +430,8 @@ fun ScanAddScreen(
                             title = it.text
                             titleAutoFilled = false
                         },
-                        label = { Text("Medicine name") },
-                        supportingText = { Text("Edit this before saving if OCR guessed wrong.") },
+                        label = { Text(stringResource(R.string.medicine_name)) },
+                        supportingText = { Text(stringResource(R.string.medicine_name_hint)) },
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
                             focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
@@ -428,13 +444,13 @@ fun ScanAddScreen(
                                 val t = titleField.text
                                 titleField = titleField.copy(selection = TextRange(0, t.length))
                             }) {
-                                androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = "Select all")
+                                androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
                             }
                         }
                     )
 
             if (suggestionLoading) {
-                Text("Finding medicines...", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.finding_medicines), style = MaterialTheme.typography.bodySmall)
             }
 
             if (nameSuggestions.isNotEmpty()) {
@@ -461,8 +477,8 @@ fun ScanAddScreen(
             OutlinedTextField(
                 value = reminderTitle,
                 onValueChange = { reminderTitle = it },
-                label = { Text("Custom reminder title") },
-                supportingText = { Text("This is the name the reminder will speak.") },
+                label = { Text(stringResource(R.string.custom_reminder_title)) },
+                supportingText = { Text(stringResource(R.string.custom_reminder_hint)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -474,7 +490,7 @@ fun ScanAddScreen(
                     dosageText = it.text
                     dosageAutoFilled = false
                 },
-                label = { Text("Dosage / strength") },
+                label = { Text(stringResource(R.string.dosage_strength)) },
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
                     focusedContainerColor = if (dosageAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
@@ -486,7 +502,7 @@ fun ScanAddScreen(
                         val t = dosageField.text
                         dosageField = dosageField.copy(selection = TextRange(0, t.length))
                     }) {
-                        androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = "Select all")
+                        androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
                     }
                 }
             )
@@ -497,7 +513,7 @@ fun ScanAddScreen(
                     notes = it
                     notesAutoFilled = false
                 },
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.notes)) },
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
                     focusedContainerColor = if (notesAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
@@ -507,8 +523,8 @@ fun ScanAddScreen(
                 maxLines = 5
             )
 
-            Text("Repeat days", style = MaterialTheme.typography.titleMedium)
-            Text("Select the days you want reminders to repeat.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.repeat_days), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.repeat_days_hint), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 weekdays.forEach { (dayNumber, dayLabel) ->
                     FilterChip(
@@ -537,7 +553,7 @@ fun ScanAddScreen(
                 }
             )
 
-            Text("Food relation", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.food_relation), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf("none", "before_food", "after_food").forEach { option ->
                     FilterChip(
@@ -551,31 +567,31 @@ fun ScanAddScreen(
             OutlinedTextField(
                 value = endDate,
                 onValueChange = { endDate = it },
-                label = { Text("End date optional") },
-                supportingText = { Text("Use YYYY-MM-DD or leave empty for no end date") },
+                label = { Text(stringResource(R.string.end_date_optional)) },
+                supportingText = { Text(stringResource(R.string.end_date_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Text(
-                text = "Reminder alert title uses the medicine name, and you can still edit it before saving.",
+                text = stringResource(R.string.reminder_title_hint),
                 style = MaterialTheme.typography.bodySmall
             )
 
             if (ocrText.isNotBlank()) {
-                Text(text = "OCR result", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
                 Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp) {
                     Text(text = ocrText, modifier = Modifier.padding(12.dp))
                 }
             }
 
-            Text("Trusted medicine info", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
             if (medicineInfo == null || title.isBlank()) {
-                Text("Type or scan a medicine name to preview trusted uses, warnings, and storage guidance.")
+                Text(stringResource(R.string.trusted_medicine_info_hint))
             } else {
                 MedicineInfoPreview(medicineInfo = medicineInfo!!)
             }
 
-            Text("Medicine Information (from OpenFDA)", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
             when {
                 openFdaLoading -> {
                     Row(
@@ -583,7 +599,7 @@ fun ScanAddScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         CircularProgressIndicator()
-                        Text("Looking up label information...")
+                        Text(stringResource(R.string.looking_up_label_information))
                     }
                 }
                 openFdaInfo != null -> {
@@ -593,58 +609,25 @@ fun ScanAddScreen(
                     Text(openFdaError!!, style = MaterialTheme.typography.bodySmall)
                 }
                 else -> {
-                    Text("Type a medicine name to fetch label guidance from OpenFDA.")
+                    Text(stringResource(R.string.openfda_hint))
                 }
             }
 
             Button(
                 onClick = {
                     scope.launch {
-                        val finalTitle = title.trim().ifBlank { ocrSuggestion.title.ifBlank { "Medicine" } }
-                        val finalReminderTitle = reminderTitle.trim().ifBlank { finalTitle }
-                        val finalDosage = dosageText.trim().ifBlank { ocrSuggestion.dosageText }
-                        val resolvedEndDate = parseIsoDateToMillis(endDate)
-                        val repeatDaysValue = selectedWeekdays.toList().sorted().joinToString(",")
-                        val checkedSlots = doseSlots.filter { it.enabled }.ifEmpty {
-                            listOf(DoseSlotState("Dose", reminderTime, enabled = true, time = reminderTime))
-                        }
-
-                        if (editMedicineId == null) {
-                            val medicine = MedicineEntity(
-                                title = finalTitle,
-                                reminderTitle = finalReminderTitle,
-                                normalizedTitle = finalTitle.lowercase(),
-                                dosageText = finalDosage,
-                                notes = notes,
-                                imageUri = selectedImageUri?.toString()
-                            )
-                            val medicineId = appContainer.medicineRepository.insertMedicine(medicine)
-
-                            checkedSlots.forEach { slot ->
-                                val schedule = ReminderScheduleEntity(
-                                    medicineId = medicineId,
-                                    timeOfDay = slot.time,
-                                    repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
-                                    repeatDays = repeatDaysValue,
-                                    startDate = System.currentTimeMillis(),
-                                    endDate = resolvedEndDate,
-                                    foodRelation = foodRelation,
-                                    isActive = true
-                                )
-                                val scheduleId = appContainer.reminderRepository.insertSchedule(schedule)
-
-                                ReminderScheduler(context, appContainer.reminderRepository).scheduleReminder(
-                                    schedule = schedule.copy(id = scheduleId),
-                                    medicineName = finalTitle,
-                                    reminderTitle = finalReminderTitle,
-                                    dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
-                                )
+                        runCatching {
+                            val finalTitle = title.trim().ifBlank { ocrSuggestion.title.ifBlank { "Medicine" } }
+                            val finalReminderTitle = reminderTitle.trim().ifBlank { finalTitle }
+                            val finalDosage = dosageText.trim().ifBlank { ocrSuggestion.dosageText }
+                            val resolvedEndDate = parseIsoDateToMillis(endDate)
+                            val repeatDaysValue = selectedWeekdays.toList().sorted().joinToString(",")
+                            val checkedSlots = doseSlots.filter { it.enabled }.ifEmpty {
+                                listOf(DoseSlotState("Dose", reminderTime, enabled = true, time = reminderTime))
                             }
-                        } else {
-                            val existingId = editMedicineId
-                            if (existingId != null) {
-                                val updated = MedicineEntity(
-                                    id = existingId,
+
+                            if (editMedicineId == null) {
+                                val medicine = MedicineEntity(
                                     title = finalTitle,
                                     reminderTitle = finalReminderTitle,
                                     normalizedTitle = finalTitle.lowercase(),
@@ -652,16 +635,11 @@ fun ScanAddScreen(
                                     notes = notes,
                                     imageUri = selectedImageUri?.toString()
                                 )
-                                appContainer.medicineRepository.updateMedicine(updated)
-
-                                val existingSchedules = appContainer.reminderRepository.getSchedulesForMedicine(existingId).firstOrNull() ?: emptyList()
-                                existingSchedules.forEach { s ->
-                                    appContainer.reminderRepository.deleteSchedule(s)
-                                }
+                                val medicineId = appContainer.medicineRepository.insertMedicine(medicine)
 
                                 checkedSlots.forEach { slot ->
                                     val schedule = ReminderScheduleEntity(
-                                        medicineId = existingId,
+                                        medicineId = medicineId,
                                         timeOfDay = slot.time,
                                         repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
                                         repeatDays = repeatDaysValue,
@@ -679,16 +657,58 @@ fun ScanAddScreen(
                                         dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
                                     )
                                 }
-                            }
-                        }
+                            } else {
+                                val existingId = editMedicineId
+                                if (existingId != null) {
+                                    val updated = MedicineEntity(
+                                        id = existingId,
+                                        title = finalTitle,
+                                        reminderTitle = finalReminderTitle,
+                                        normalizedTitle = finalTitle.lowercase(),
+                                        dosageText = finalDosage,
+                                        notes = notes,
+                                        imageUri = selectedImageUri?.toString()
+                                    )
+                                    appContainer.medicineRepository.updateMedicine(updated)
 
-                        navController.navigate("today")
+                                    val existingSchedules = appContainer.reminderRepository.getSchedulesForMedicine(existingId).firstOrNull() ?: emptyList()
+                                    existingSchedules.forEach { s ->
+                                        appContainer.reminderRepository.deleteSchedule(s)
+                                    }
+
+                                    checkedSlots.forEach { slot ->
+                                        val schedule = ReminderScheduleEntity(
+                                            medicineId = existingId,
+                                            timeOfDay = slot.time,
+                                            repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
+                                            repeatDays = repeatDaysValue,
+                                            startDate = System.currentTimeMillis(),
+                                            endDate = resolvedEndDate,
+                                            foodRelation = foodRelation,
+                                            isActive = true
+                                        )
+                                        val scheduleId = appContainer.reminderRepository.insertSchedule(schedule)
+
+                                        ReminderScheduler(context, appContainer.reminderRepository).scheduleReminder(
+                                            schedule = schedule.copy(id = scheduleId),
+                                            medicineName = finalTitle,
+                                            reminderTitle = finalReminderTitle,
+                                            dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
+                                        )
+                                    }
+                                }
+                            }
+
+                            navController.navigate("today")
+                        }.onFailure { error ->
+                            saveErrorMessage = error.message ?: "Failed to save medicine. Please try again."
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = (title.isNotBlank() || ocrSuggestion.title.isNotBlank()) && selectedWeekdays.isNotEmpty()
             ) {
-                Text("Save Medicine")
+                Text(stringResource(R.string.save_medicine))
             }
         }
     }
@@ -700,15 +720,15 @@ private fun DoseTableSection(
     onToggleSlot: (Int) -> Unit,
     onPickSlotTime: (Int) -> Unit
 ) {
-    Text("How many times a day?", style = MaterialTheme.typography.titleMedium)
-    Text("Tick the dose rows you need. Each checked row gets its own alarm time.", style = MaterialTheme.typography.bodySmall)
+    Text(stringResource(R.string.how_many_times_a_day), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.dose_table_hint), style = MaterialTheme.typography.bodySmall)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Dose", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                Text(text = "Tick", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelLarge)
-                Text(text = "Time", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text(text = stringResource(R.string.dose), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text(text = stringResource(R.string.tick), modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelLarge)
+                Text(text = stringResource(R.string.time), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
             }
 
             doseSlots.forEachIndexed { index, slot ->
@@ -739,11 +759,11 @@ private fun MedicineInfoPreview(medicineInfo: MedicineInfo) {
         SimpleBulletCard("Warnings", medicineInfo.warnings)
         Card {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("Storage guidance", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.storage_guidance), style = MaterialTheme.typography.titleMedium)
                 Text(medicineInfo.storageGuidance)
             }
         }
-        Text("Source: ${medicineInfo.sourceName}", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.source_prefix, medicineInfo.sourceName), style = MaterialTheme.typography.bodySmall)
         Text(medicineInfo.disclaimer, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -753,7 +773,8 @@ private fun SimpleBulletCard(title: String, items: List<String>) {
     Card {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            items.forEach { item -> Text("• $item") }
+            val bullet = stringResource(R.string.bullet)
+            items.forEach { item -> Text("$bullet $item") }
         }
     }
 }
@@ -765,7 +786,7 @@ private fun SuggestionListCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Choose medicine", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.choose_medicine), style = MaterialTheme.typography.titleMedium)
             suggestions.forEach { suggestion ->
                 Row(
                     modifier = Modifier
@@ -800,12 +821,12 @@ private fun OpenFdaInfoCard(openFdaInfo: OpenFdaMedicineInfo) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(openFdaInfo.displayName, style = MaterialTheme.typography.titleLarge)
-            OpenFdaExpandableRow(label = "What it's for", icon = Icons.Filled.Info, value = openFdaInfo.purpose)
-            OpenFdaExpandableRow(label = "Warnings", icon = Icons.Filled.Info, value = openFdaInfo.warnings)
-            OpenFdaExpandableRow(label = "How to take", icon = Icons.Filled.Info, value = openFdaInfo.dosageAndAdministration)
-            OpenFdaExpandableRow(label = "Side effects", icon = Icons.Filled.Info, value = openFdaInfo.adverseReactions)
-            OpenFdaExpandableRow(label = "Storage", icon = Icons.Filled.Info, value = openFdaInfo.storageAndHandling)
-            Text("Source: ${openFdaInfo.sourceName}", style = MaterialTheme.typography.bodySmall)
+            OpenFdaExpandableRow(label = stringResource(R.string.what_its_for), icon = Icons.Filled.Info, value = openFdaInfo.purpose)
+            OpenFdaExpandableRow(label = stringResource(R.string.warnings), icon = Icons.Filled.Info, value = openFdaInfo.warnings)
+            OpenFdaExpandableRow(label = stringResource(R.string.how_to_take), icon = Icons.Filled.Info, value = openFdaInfo.dosageAndAdministration)
+            OpenFdaExpandableRow(label = stringResource(R.string.side_effects), icon = Icons.Filled.Info, value = openFdaInfo.adverseReactions)
+            OpenFdaExpandableRow(label = stringResource(R.string.storage), icon = Icons.Filled.Info, value = openFdaInfo.storageAndHandling)
+            Text(stringResource(R.string.source_prefix, openFdaInfo.sourceName), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -831,7 +852,7 @@ private fun OpenFdaExpandableRow(
             androidx.compose.material3.Icon(imageVector = icon, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(label, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Text(if (expanded) "Hide" else "Show", style = MaterialTheme.typography.bodySmall)
+            Text(if (expanded) stringResource(R.string.hide) else stringResource(R.string.show), style = MaterialTheme.typography.bodySmall)
         }
         if (expanded) {
             Text(

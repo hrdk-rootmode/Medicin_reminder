@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.repository.ReminderRepository
 import kotlinx.coroutines.CoroutineScope
@@ -17,6 +18,7 @@ class ReminderScheduler(
 ) {
     
     companion object {
+        private const val TAG = "ReminderScheduler"
         private const val GROUPED_REMINDER_ACTION = "com.example.medicinreminder.GROUPED_REMINDER_ACTION"
         const val EXTRA_PERIOD = "period"
         const val EXTRA_MEDICINE_IDS = "medicine_ids"
@@ -33,8 +35,12 @@ class ReminderScheduler(
     
     fun scheduleAllReminders() {
         CoroutineScope(Dispatchers.IO).launch {
-            TimeOfDayPeriod.entries.forEach { period ->
-                scheduleGroupedReminderForPeriod(period)
+            runCatching {
+                TimeOfDayPeriod.entries.forEach { period ->
+                    scheduleGroupedReminderForPeriod(period)
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to schedule all reminders", error)
             }
         }
     }
@@ -47,13 +53,21 @@ class ReminderScheduler(
     ) {
         val period = TimeOfDayPeriod.fromTime(schedule.timeOfDay)
         CoroutineScope(Dispatchers.IO).launch {
-            scheduleGroupedReminderForPeriod(period)
+            runCatching {
+                scheduleGroupedReminderForPeriod(period)
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to schedule reminder for $medicineName", error)
+            }
         }
     }
     
     fun cancelReminder(scheduleId: Long) {
         CoroutineScope(Dispatchers.IO).launch {
-            scheduleAllReminders()
+            runCatching {
+                scheduleAllReminders()
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to cancel reminder $scheduleId", error)
+            }
         }
     }
     
@@ -98,10 +112,9 @@ class ReminderScheduler(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            period.nextTriggerTimeMillis(triggerHour, triggerMinute),
-            primaryPendingIntent
+        scheduleAlarm(
+            triggerAtMillis = period.nextTriggerTimeMillis(triggerHour, triggerMinute),
+            pendingIntent = primaryPendingIntent
         )
 
         val secondRingIntent = Intent(context, ReminderReceiver::class.java).apply {
@@ -116,10 +129,9 @@ class ReminderScheduler(
             secondRingIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            period.nextTriggerTimeMillis(triggerHour, triggerMinute) + 60_000L,
-            secondRingPendingIntent
+        scheduleAlarm(
+            triggerAtMillis = period.nextTriggerTimeMillis(triggerHour, triggerMinute) + 60_000L,
+            pendingIntent = secondRingPendingIntent
         )
 
         for (repeatIndex in 1..repeatCount) {
@@ -135,11 +147,31 @@ class ReminderScheduler(
                 repeatIntent,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
+            scheduleAlarm(
+                triggerAtMillis = period.nextTriggerTimeMillis(triggerHour, triggerMinute) + (repeatIndex * 60_000L),
+                pendingIntent = repeatPendingIntent
+            )
+        }
+    }
+
+    private fun scheduleAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
+        runCatching {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
-                period.nextTriggerTimeMillis(triggerHour, triggerMinute) + (repeatIndex * 60_000L),
-                repeatPendingIntent
+                triggerAtMillis,
+                pendingIntent
             )
+        }.onFailure { exactAlarmError ->
+            Log.w(TAG, "Exact alarm unavailable, using inexact scheduling instead", exactAlarmError)
+            runCatching {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }.onFailure { fallbackError ->
+                Log.e(TAG, "Failed to schedule reminder alarm", fallbackError)
+            }
         }
     }
 
