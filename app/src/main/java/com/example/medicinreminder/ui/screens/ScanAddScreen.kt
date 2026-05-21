@@ -97,7 +97,8 @@ private data class DoseSlotState(
 @Composable
 fun ScanAddScreen(
     navController: NavHostController,
-    appContainer: AppContainer
+    appContainer: AppContainer,
+    editMedicineId: Long? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -152,6 +153,35 @@ fun ScanAddScreen(
             DoseSlotState("Evening", "18:00"),
             DoseSlotState("Night", "21:00")
         )
+    }
+
+    // If opened for editing, load existing medicine and schedules
+    LaunchedEffect(editMedicineId) {
+        val id = editMedicineId
+        if (id != null) {
+            val existing = appContainer.medicineRepository.getMedicineById(id)
+            if (existing != null) {
+                title = existing.title
+                titleField = TextFieldValue(existing.title, selection = TextRange(existing.title.length))
+                reminderTitle = existing.reminderTitle
+                dosageText = existing.dosageText
+                dosageField = TextFieldValue(existing.dosageText, selection = TextRange(existing.dosageText.length))
+                notes = existing.notes
+                selectedImageUri = existing.imageUri?.let { Uri.parse(it) }
+
+                // Load schedules and populate UI fields
+                val schedules = appContainer.reminderRepository.getSchedulesForMedicine(id).firstOrNull() ?: emptyList()
+                if (schedules.isNotEmpty()) {
+                    schedules.forEachIndexed { index, sched ->
+                        if (index < doseSlots.size) {
+                            doseSlots[index] = doseSlots[index].copy(enabled = true, time = sched.timeOfDay)
+                        }
+                    }
+                    val days = schedules.flatMap { it.repeatDays.split(',').mapNotNull { it.trim().toIntOrNull() } }.toSet()
+                    if (days.isNotEmpty()) selectedWeekdays = days
+                }
+            }
+        }
     }
 
     fun applyOcr(text: String) {
@@ -579,35 +609,77 @@ fun ScanAddScreen(
                             listOf(DoseSlotState("Dose", reminderTime, enabled = true, time = reminderTime))
                         }
 
-                        val medicine = MedicineEntity(
-                            title = finalTitle,
-                            reminderTitle = finalReminderTitle,
-                            normalizedTitle = finalTitle.lowercase(),
-                            dosageText = finalDosage,
-                            notes = notes,
-                            imageUri = selectedImageUri?.toString()
-                        )
-                        val medicineId = appContainer.medicineRepository.insertMedicine(medicine)
-
-                        checkedSlots.forEach { slot ->
-                            val schedule = ReminderScheduleEntity(
-                                medicineId = medicineId,
-                                timeOfDay = slot.time,
-                                repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
-                                repeatDays = repeatDaysValue,
-                                startDate = System.currentTimeMillis(),
-                                endDate = resolvedEndDate,
-                                foodRelation = foodRelation,
-                                isActive = true
-                            )
-                            val scheduleId = appContainer.reminderRepository.insertSchedule(schedule)
-
-                            ReminderScheduler(context, appContainer.reminderRepository).scheduleReminder(
-                                schedule = schedule.copy(id = scheduleId),
-                                medicineName = finalTitle,
+                        if (editMedicineId == null) {
+                            val medicine = MedicineEntity(
+                                title = finalTitle,
                                 reminderTitle = finalReminderTitle,
-                                dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
+                                normalizedTitle = finalTitle.lowercase(),
+                                dosageText = finalDosage,
+                                notes = notes,
+                                imageUri = selectedImageUri?.toString()
                             )
+                            val medicineId = appContainer.medicineRepository.insertMedicine(medicine)
+
+                            checkedSlots.forEach { slot ->
+                                val schedule = ReminderScheduleEntity(
+                                    medicineId = medicineId,
+                                    timeOfDay = slot.time,
+                                    repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
+                                    repeatDays = repeatDaysValue,
+                                    startDate = System.currentTimeMillis(),
+                                    endDate = resolvedEndDate,
+                                    foodRelation = foodRelation,
+                                    isActive = true
+                                )
+                                val scheduleId = appContainer.reminderRepository.insertSchedule(schedule)
+
+                                ReminderScheduler(context, appContainer.reminderRepository).scheduleReminder(
+                                    schedule = schedule.copy(id = scheduleId),
+                                    medicineName = finalTitle,
+                                    reminderTitle = finalReminderTitle,
+                                    dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
+                                )
+                            }
+                        } else {
+                            val existingId = editMedicineId
+                            if (existingId != null) {
+                                val updated = MedicineEntity(
+                                    id = existingId,
+                                    title = finalTitle,
+                                    reminderTitle = finalReminderTitle,
+                                    normalizedTitle = finalTitle.lowercase(),
+                                    dosageText = finalDosage,
+                                    notes = notes,
+                                    imageUri = selectedImageUri?.toString()
+                                )
+                                appContainer.medicineRepository.updateMedicine(updated)
+
+                                val existingSchedules = appContainer.reminderRepository.getSchedulesForMedicine(existingId).firstOrNull() ?: emptyList()
+                                existingSchedules.forEach { s ->
+                                    appContainer.reminderRepository.deleteSchedule(s)
+                                }
+
+                                checkedSlots.forEach { slot ->
+                                    val schedule = ReminderScheduleEntity(
+                                        medicineId = existingId,
+                                        timeOfDay = slot.time,
+                                        repeatType = if (selectedWeekdays.size == 7) "daily" else "custom",
+                                        repeatDays = repeatDaysValue,
+                                        startDate = System.currentTimeMillis(),
+                                        endDate = resolvedEndDate,
+                                        foodRelation = foodRelation,
+                                        isActive = true
+                                    )
+                                    val scheduleId = appContainer.reminderRepository.insertSchedule(schedule)
+
+                                    ReminderScheduler(context, appContainer.reminderRepository).scheduleReminder(
+                                        schedule = schedule.copy(id = scheduleId),
+                                        medicineName = finalTitle,
+                                        reminderTitle = finalReminderTitle,
+                                        dosage = if (checkedSlots.size > 1) "${slot.label} - ${finalDosage.ifBlank { "As prescribed" }}" else finalDosage.ifBlank { "As prescribed" }
+                                    )
+                                }
+                            }
                         }
 
                         navController.navigate("today")

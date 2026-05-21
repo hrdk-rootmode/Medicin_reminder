@@ -25,6 +25,8 @@ import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.notifications.TimeOfDayPeriod
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,8 +39,8 @@ fun TodayScreen(
     var activeReminderCount by remember { mutableIntStateOf(0) }
     var selectedMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     val scope = rememberCoroutineScope()
-    val (todayStart, todayEnd) = remember { getTodayTimeRange() }
     var todayLogs by remember { mutableStateOf<List<DoseLogEntity>>(emptyList()) }
+    var dayRefreshTick by remember { mutableIntStateOf(0) }
     val periodOrder = remember {
         listOf(
             TimeOfDayPeriod.MORNING,
@@ -47,6 +49,8 @@ fun TodayScreen(
             TimeOfDayPeriod.NIGHT
         )
     }
+
+    val (todayStart, todayEnd) = remember(dayRefreshTick) { getTodayTimeRange() }
 
     val schedulesByMedicine = remember(schedules) {
         schedules.groupBy { it.medicineId }
@@ -65,7 +69,15 @@ fun TodayScreen(
         medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() }
     }
 
-    LaunchedEffect(appContainer) {
+    LaunchedEffect(Unit) {
+        while (true) {
+            val waitMillis = millisUntilNextMidnight() + 1_000L
+            delay(waitMillis)
+            dayRefreshTick++
+        }
+    }
+
+    LaunchedEffect(todayStart, todayEnd, appContainer) {
         activeReminderCount = appContainer.reminderRepository.getActiveScheduleCount()
         appContainer.reminderRepository.getLogsInRange(todayStart, todayEnd).collect { logs ->
             todayLogs = logs
@@ -231,6 +243,10 @@ fun TodayScreen(
                     appContainer.medicineRepository.archiveMedicine(medicine.id)
                     selectedMedicine = null
                 }
+            },
+            onEdit = {
+                selectedMedicine = null
+                navController.navigate("scan_add?editId=${medicine.id}")
             }
         )
     }
@@ -457,4 +473,17 @@ private fun DoseTableCard(
             }
         }
     }
+}
+
+private fun millisUntilNextMidnight(): Long {
+    val now = System.currentTimeMillis()
+    val calendar = Calendar.getInstance().apply {
+        timeInMillis = now
+        add(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return (calendar.timeInMillis - now).coerceAtLeast(60_000L)
 }

@@ -23,10 +23,23 @@ fun AppNavigation(
                 appContainer = appContainer
             )
         }
+        // Keep simple add route
         composable(Screen.ScanAdd.route) {
             ScanAddScreen(
                 navController = navController,
-                appContainer = appContainer
+                appContainer = appContainer,
+                editMedicineId = null
+            )
+        }
+
+        // Optional route to edit an existing medicine by id: scan_add?editId=123
+        composable("scan_add?editId={editId}") { backStackEntry ->
+            val editIdArg = backStackEntry.arguments?.getString("editId")
+            val editId = editIdArg?.toLongOrNull()?.takeIf { it > 0 }
+            ScanAddScreen(
+                navController = navController,
+                appContainer = appContainer,
+                editMedicineId = editId
             )
         }
         composable(Screen.MyMedicines.route) {

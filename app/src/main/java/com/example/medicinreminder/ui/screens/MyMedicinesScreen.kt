@@ -20,6 +20,7 @@ import com.example.medicinreminder.data.entity.ReminderScheduleEntity
 import com.example.medicinreminder.data.entity.UserEntitlementEntity
 import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.notifications.ReminderScheduler
+import com.example.medicinreminder.notifications.TimeOfDayPeriod
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
@@ -36,6 +37,27 @@ fun MyMedicinesScreen(
     val scope = rememberCoroutineScope()
     var selectedMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var alertSettingsMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
+    var pendingDisableMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
+    val periodOrder = remember {
+        listOf(
+            TimeOfDayPeriod.MORNING,
+            TimeOfDayPeriod.AFTERNOON,
+            TimeOfDayPeriod.EVENING,
+            TimeOfDayPeriod.NIGHT
+        )
+    }
+    val schedulesByMedicine = remember(schedules) { schedules.groupBy { it.medicineId } }
+    val groupedMedicines = remember(medicines, schedulesByMedicine) {
+        periodOrder.associateWith { period ->
+            medicines.filter { medicine ->
+                schedulesByMedicine[medicine.id].orEmpty()
+                    .any { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+            }
+        }
+    }
+    val otherMedicines = remember(medicines, schedulesByMedicine) {
+        medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() }
+    }
     
     Scaffold(
         topBar = {
@@ -101,22 +123,80 @@ fun MyMedicinesScreen(
                     }
                 }
             } else {
-                items(medicines) { medicine ->
-                    MedicineLibraryCard(
-                        medicine = medicine,
-                        schedules = schedules.filter { it.medicineId == medicine.id },
-                        isArchived = medicine.isArchived,
-                        onClick = { selectedMedicine = medicine },
-                        onAlertSettingsClick = { alertSettingsMedicine = medicine },
-                        onDelete = {
-                            scope.launch {
-                                appContainer.medicineRepository.archiveMedicine(medicine.id)
-                            }
+                periodOrder.forEach { period ->
+                    val medicinesInPeriod = groupedMedicines[period].orEmpty()
+                    if (medicinesInPeriod.isNotEmpty()) {
+                        item(key = "header_${period.name}") {
+                            MedicineCategoryHeader(
+                                title = period.displayName,
+                                count = medicinesInPeriod.size
+                            )
                         }
-                    )
+
+                        items(items = medicinesInPeriod, key = { it.id }) { medicine ->
+                            MedicineLibraryCard(
+                                medicine = medicine,
+                                schedules = schedulesByMedicine[medicine.id].orEmpty()
+                                    .filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period },
+                                isArchived = medicine.isArchived,
+                                onClick = { selectedMedicine = medicine },
+                                onAlertSettingsClick = { alertSettingsMedicine = medicine },
+                                onDisableRequest = { pendingDisableMedicine = medicine },
+                                onEnable = {
+                                    scope.launch {
+                                        appContainer.medicineRepository.unarchiveMedicine(medicine.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (otherMedicines.isNotEmpty()) {
+                    item(key = "header_other") {
+                        MedicineCategoryHeader(title = "Other / As Needed", count = otherMedicines.size)
+                    }
+                    items(items = otherMedicines, key = { it.id }) { medicine ->
+                        MedicineLibraryCard(
+                            medicine = medicine,
+                            schedules = emptyList(),
+                            isArchived = medicine.isArchived,
+                            onClick = { selectedMedicine = medicine },
+                            onAlertSettingsClick = { alertSettingsMedicine = medicine },
+                            onDisableRequest = { pendingDisableMedicine = medicine },
+                            onEnable = {
+                                scope.launch {
+                                    appContainer.medicineRepository.unarchiveMedicine(medicine.id)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    pendingDisableMedicine?.let { medicine ->
+        AlertDialog(
+            onDismissRequest = { pendingDisableMedicine = null },
+            title = { Text("Disable medicine") },
+            text = { Text("Disable ${medicine.title}? This will stop its active reminders until you enable it again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        appContainer.medicineRepository.archiveMedicine(medicine.id)
+                        pendingDisableMedicine = null
+                    }
+                }) {
+                    Text("Disable")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDisableMedicine = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     selectedMedicine?.let { medicine ->
@@ -136,6 +216,11 @@ fun MyMedicinesScreen(
                     appContainer.medicineRepository.toggleArchiveStatus(medicine.id)
                     selectedMedicine = null
                 }
+            },
+            onEdit = {
+                // Close dialog and navigate to add screen with editId
+                selectedMedicine = null
+                navController.navigate("scan_add?editId=${medicine.id}")
             }
         )
     }
@@ -273,7 +358,8 @@ fun MedicineLibraryCard(
     isArchived: Boolean = false,
     onClick: () -> Unit,
     onAlertSettingsClick: () -> Unit,
-    onDelete: () -> Unit
+    onDisableRequest: () -> Unit,
+    onEnable: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -342,10 +428,24 @@ fun MedicineLibraryCard(
                 IconButton(onClick = onAlertSettingsClick) {
                     Icon(imageVector = Icons.Filled.Settings, contentDescription = "Alert settings")
                 }
-                TextButton(onClick = onDelete) {
-                    Text("Disable")
+                TextButton(onClick = if (isArchived) onEnable else onDisableRequest) {
+                    Text(if (isArchived) "Enable" else "Disable")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MedicineCategoryHeader(title: String, count: Int) {
+    Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "$title · $count medicines",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        )
     }
 }

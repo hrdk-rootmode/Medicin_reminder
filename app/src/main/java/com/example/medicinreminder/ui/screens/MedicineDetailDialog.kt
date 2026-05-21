@@ -38,7 +38,8 @@ fun MedicineDetailDialog(
     medicineInfoRepository: MedicineInfoRepository,
     onDismiss: () -> Unit,
     onSave: (MedicineEntity) -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    onEdit: () -> Unit
 ) {
     var title by remember(medicine.id) { mutableStateOf(medicine.title) }
     var reminderTitle by remember(medicine.id) { mutableStateOf(medicine.reminderTitle) }
@@ -135,6 +136,9 @@ fun MedicineDetailDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onArchive, modifier = Modifier.weight(1f)) {
                         Text(if (medicine.isArchived) "Enable" else "Disable")
+                    }
+                    OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                        Text("Edit")
                     }
                     Button(
                         onClick = {
