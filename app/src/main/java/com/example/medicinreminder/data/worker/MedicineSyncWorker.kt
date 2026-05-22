@@ -17,7 +17,6 @@ class MedicineSyncWorker(
 ) : CoroutineWorker(context, params) {
     
     private val tag = "MedicineSyncWorker"
-    private val apiKey = "6tyI9q6cD14VzXnYD53VSJeWpy4Nl5S97DEXtskN"
 
     override suspend fun doWork(): Result {
         Log.d(tag, "Starting medicine sync...")
@@ -57,7 +56,7 @@ class MedicineSyncWorker(
                     for (searchQuery in searchVariants) {
                         val response = service.searchDrugsLabel(
                             query = searchQuery,
-                            apiKey = apiKey,
+                            apiKey = OpenFDAClient.apiKey.takeIf { it.isNotBlank() },
                             limit = 10
                         )
 

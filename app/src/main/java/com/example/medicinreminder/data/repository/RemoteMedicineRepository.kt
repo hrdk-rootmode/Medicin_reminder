@@ -62,7 +62,7 @@ class RemoteMedicineRepository(private val remoteMedicineDao: RemoteMedicineDao)
                 val response = runCatching {
                     service.searchDrugsLabel(
                         query = searchQuery,
-                        apiKey = OpenFDAClient.API_KEY,
+                        apiKey = OpenFDAClient.apiKey.takeIf { it.isNotBlank() },
                         sort = "effective_time:desc",
                         limit = 1
                     )
@@ -98,7 +98,7 @@ class RemoteMedicineRepository(private val remoteMedicineDao: RemoteMedicineDao)
                 val response = runCatching {
                     service.searchDrugsLabel(
                         query = searchQuery,
-                        apiKey = OpenFDAClient.API_KEY,
+                        apiKey = OpenFDAClient.apiKey.takeIf { it.isNotBlank() },
                         sort = "effective_time:desc",
                         limit = limit
                     )

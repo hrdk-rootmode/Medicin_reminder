@@ -89,6 +89,14 @@
     <string name="food_relation_prefix">Food relation: %1$s</string>
     <string name="medicine_info">Medicine info</string>
     <string name="no_trusted_medicine_info_found">No trusted medicine info found for this title yet. Add an alias or entry to app/src/main/assets/medicine_info.json if you want it to show here.</string>
+    <string name="use_ai_summary">Use AI summary</string>
+    <string name="summarize_with_ai">Summarize with AI</string>
+    <string name="save_ai_summary">Save AI summary</string>
+    <string name="ai_summary_unavailable">AI summary unavailable</string>
+    <string name="ai_summary">AI summary</string>
+    <string name="use_app_language">Use app language for AI</string>
+    <string name="use_hinglish">Use Romanized Hindi (Hinglish)</string>
+    <string name="detailed_ai_summary">Detailed AI summary</string>
     <string name="uses_prefix">Uses: %1$s</string>
     <string name="side_effects_prefix">Side effects: %1$s</string>
     <string name="warnings_prefix">Warnings: %1$s</string>

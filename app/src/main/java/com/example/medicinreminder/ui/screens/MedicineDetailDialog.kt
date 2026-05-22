@@ -33,13 +33,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Switch
+import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.launch
+import com.example.medicinreminder.data.model.MedicineInfo
+import com.example.medicinreminder.data.ads.RewardedAdManager
 import coil.compose.AsyncImage
+import androidx.compose.material3.OutlinedButton
 import com.example.medicinreminder.R
 import com.example.medicinreminder.data.entity.MedicineEntity
 import com.example.medicinreminder.data.entity.ReminderScheduleEntity
@@ -59,6 +66,7 @@ fun MedicineDetailDialog(
     onEdit: () -> Unit
 ) {
     val context = LocalContext.current
+    val aiUnavailableText = stringResource(R.string.ai_summary_unavailable)
     var title by remember(medicine.id) { mutableStateOf(medicine.title) }
     var reminderTitle by remember(medicine.id) { mutableStateOf(medicine.reminderTitle) }
     var dosageText by remember(medicine.id) { mutableStateOf(medicine.dosageText) }
@@ -66,6 +74,14 @@ fun MedicineDetailDialog(
     var imageUri by remember(medicine.id) { mutableStateOf(medicine.imageUri.orEmpty()) }
     var infoText by remember { mutableStateOf<MedicineEntity?>(null) }
     var info by remember { mutableStateOf<com.example.medicinreminder.data.model.MedicineInfo?>(null) }
+    var useAi by remember { mutableStateOf(false) }
+    var aiInfo by remember { mutableStateOf<MedicineInfo?>(null) }
+    var aiLoading by remember { mutableStateOf(false) }
+    var aiError by remember { mutableStateOf<String?>(null) }
+    var useAppLanguage by remember { mutableStateOf(false) }
+    var useHinglish by remember { mutableStateOf(false) }
+    var detailedAi by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -191,14 +207,132 @@ fun MedicineDetailDialog(
                 }
 
                 Text(text = stringResource(R.string.medicine_info), style = MaterialTheme.typography.titleMedium)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.use_ai_summary))
+                    Switch(checked = useAi, onCheckedChange = { useAi = it })
+                }
+
+                if (useAi && info != null) {
+                    if (aiLoading) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    aiError = null
+                                    coroutineScope.launch {
+                                        aiLoading = true
+                                        val rewarded = RewardedAdManager.showRewardedAd(context)
+                                        if (!rewarded) {
+                                            aiError = "Ad not completed"
+                                            aiLoading = false
+                                            return@launch
+                                        }
+                                        val result = runCatching {
+                                            medicineInfoRepository.summarizeWithAi(title, useAppLanguage, useHinglish, detailedAi)
+                                        }.getOrNull()
+                                        if (result == null) {
+                                            aiError = aiUnavailableText
+                                        } else {
+                                            aiInfo = result
+                                        }
+                                        aiLoading = false
+                                    }
+                                }) {
+                                    Text(stringResource(R.string.summarize_with_ai))
+                                }
+                                if (aiInfo != null) {
+                                    OutlinedButton(onClick = {
+                                        coroutineScope.launch {
+                                            medicineInfoRepository.cacheAiSummary(title, aiInfo!!)
+                                        }
+                                    }) {
+                                        Text(stringResource(R.string.save_ai_summary))
+                                    }
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                androidx.compose.material3.Checkbox(checked = useAppLanguage, onCheckedChange = { useAppLanguage = it })
+                                Text(stringResource(R.string.use_app_language))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                androidx.compose.material3.Checkbox(checked = useHinglish, onCheckedChange = { useHinglish = it })
+                                Text(stringResource(R.string.use_hinglish))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                androidx.compose.material3.Checkbox(checked = detailedAi, onCheckedChange = { detailedAi = it })
+                                Text(stringResource(R.string.detailed_ai_summary))
+                            }
+                        }
+                        aiError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+
                 if (info == null) {
                     Text(stringResource(R.string.no_trusted_medicine_info_found))
                 } else {
-                    Text(info!!.displayName, style = MaterialTheme.typography.titleLarge)
-                    Text(stringResource(R.string.uses_prefix, info!!.commonUses.joinToString()))
-                    Text(stringResource(R.string.side_effects_prefix, info!!.commonSideEffects.joinToString()))
-                    Text(stringResource(R.string.warnings_prefix, info!!.warnings.joinToString()))
-                    Text(stringResource(R.string.storage_guidance) + ": ${info!!.storageGuidance}")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(info!!.displayName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = {
+                            // Trigger AI summarize via the same flow as the button above
+                            aiError = null
+                            coroutineScope.launch {
+                                aiLoading = true
+                                val rewarded = RewardedAdManager.showRewardedAd(context)
+                                if (!rewarded) {
+                                    aiError = "Ad not completed"
+                                    aiLoading = false
+                                    return@launch
+                                }
+                                val result = runCatching {
+                                    medicineInfoRepository.summarizeWithAi(title, useAppLanguage, useHinglish, detailedAi)
+                                }.getOrNull()
+                                if (result == null) {
+                                    aiError = aiUnavailableText
+                                } else {
+                                    aiInfo = result
+                                }
+                                aiLoading = false
+                            }
+                        }) {
+                            Text("AI")
+                        }
+                    }
+                    // If an AI summary exists in memory, show it above the trusted info
+                    aiInfo?.let { summary ->
+                        Text(text = "AI Summary", style = MaterialTheme.typography.titleMedium)
+                        BulletSection(
+                            title = stringResource(R.string.what_its_for),
+                            items = summary.commonUses
+                        )
+                        BulletSection(
+                            title = stringResource(R.string.side_effects),
+                            items = summary.commonSideEffects
+                        )
+                        BulletSection(
+                            title = stringResource(R.string.warnings),
+                            items = summary.warnings
+                        )
+                    }
+                    BulletSection(
+                        title = stringResource(R.string.what_its_for),
+                        items = info!!.commonUses
+                    )
+                    BulletSection(
+                        title = stringResource(R.string.side_effects),
+                        items = info!!.commonSideEffects
+                    )
+                    BulletSection(
+                        title = stringResource(R.string.warnings),
+                        items = info!!.warnings
+                    )
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.storage_guidance), style = MaterialTheme.typography.titleMedium)
+                            Text(info!!.storageGuidance)
+                        }
+                    }
                     Text(info!!.disclaimer, style = MaterialTheme.typography.bodySmall)
                 }
 
@@ -242,4 +376,18 @@ private fun saveBitmapToCache(context: android.content.Context, bitmap: Bitmap):
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
     }
     return outputFile
+}
+
+@Composable
+private fun BulletSection(title: String, items: List<String>) {
+    if (items.isEmpty()) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            items.forEach { item ->
+                Text("• $item", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
 }

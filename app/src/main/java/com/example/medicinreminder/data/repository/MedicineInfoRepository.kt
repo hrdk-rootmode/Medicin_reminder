@@ -2,6 +2,7 @@ package com.example.medicinreminder.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.medicinreminder.data.api.GroqClient
 import com.example.medicinreminder.data.model.MedicineInfo
 import com.example.medicinreminder.data.model.MedicineNameSuggestion
 import kotlinx.coroutines.flow.firstOrNull
@@ -10,12 +11,17 @@ import org.json.JSONArray
 interface MedicineInfoRepository {
     suspend fun lookup(query: String): MedicineInfo?
     suspend fun suggestNames(query: String, limit: Int = 8): List<MedicineNameSuggestion>
+    // Request an AI-generated, localized summary for a trusted medicine and cache it.
+    suspend fun summarizeWithAi(query: String, useAppLanguage: Boolean = false, preferHinglish: Boolean = false, detailed: Boolean = false): MedicineInfo?
+    // Cache an already-obtained AI summary for the given query/language.
+    suspend fun cacheAiSummary(query: String, info: MedicineInfo): Boolean
 }
 
 class LocalMedicineInfoRepository(
     private val context: Context,
     private val remoteMedicineRepository: RemoteMedicineRepository? = null
 ) : MedicineInfoRepository {
+    private val aiCache = AiSummaryCache(context)
     private data class Entry(
         val displayName: String,
         val aliases: List<String>,
@@ -28,55 +34,29 @@ class LocalMedicineInfoRepository(
         val normalized = normalize(query)
         if (normalized.isBlank()) return null
 
-        // Check remote cache first if available
-        remoteMedicineRepository?.let { repo ->
-            try {
-                val remoteMedicine = repo.getMedicineById(normalized)
-                    ?: repo.searchMedicines(query).firstOrNull()?.firstOrNull()
-                if (remoteMedicine != null) {
-                    return MedicineInfo(
-                        displayName = remoteMedicine.displayName,
-                        commonUses = remoteMedicine.commonUses.split("\n").filter { it.isNotBlank() },
-                        commonSideEffects = remoteMedicine.commonSideEffects.split("\n").filter { it.isNotBlank() },
-                        warnings = remoteMedicine.warnings.split("\n").filter { it.isNotBlank() },
-                        storageGuidance = remoteMedicine.storageGuidance,
-                        sourceName = remoteMedicine.sourceName,
-                        disclaimer = remoteMedicine.disclaimer
-                    )
-                }
-            } catch (e: Exception) {
-                // If remote lookup fails, continue to local fallback
-                Log.d("MedicineInfoRepository", "Remote lookup failed, using local fallback: ${e.message}")
+        val currentLanguageTag = currentLanguageTag()
+
+        val trustedInfo = lookupTrusted(query)
+        if (trustedInfo != null) {
+            return runCatching {
+                GroqClient.summarizeMedicineInfo(trustedInfo, currentLanguageTag)
+            }.getOrDefault(trustedInfo)
+        }
+
+        val groqCandidates = runCatching {
+            GroqClient.suggestMedicineNames(query, currentLanguageTag, limit = 5)
+        }.getOrDefault(emptyList())
+
+        for (candidateName in groqCandidates) {
+            val resolved = lookupTrusted(candidateName)
+            if (resolved != null) {
+                return runCatching {
+                    GroqClient.summarizeMedicineInfo(resolved, currentLanguageTag)
+                }.getOrDefault(resolved)
             }
         }
 
-        // Fallback to local dataset
-        val exactMatch = supportedMedicines.firstOrNull { entry ->
-            val candidateKeys = listOf(entry.displayName) + entry.aliases
-            candidateKeys.any { normalize(it) == normalized }
-        }
-        if (exactMatch != null) return exactMatch.info
-
-        val containsMatch = supportedMedicines.firstOrNull { entry ->
-            val candidateKeys = listOf(entry.displayName) + entry.aliases
-            candidateKeys.any { key ->
-                val normalizedKey = normalize(key)
-                normalized.contains(normalizedKey) || normalizedKey.contains(normalized)
-            }
-        }
-        if (containsMatch != null) return containsMatch.info
-
-        val tokenized = normalized.split(" ", ",", "+", "-", "(", ")", "/")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-
-        return supportedMedicines.firstOrNull { entry ->
-            val candidateKeys = listOf(entry.displayName) + entry.aliases
-            candidateKeys.any { key ->
-                val normalizedKey = normalize(key)
-                tokenized.any { token -> token.length >= 4 && normalizedKey.contains(token) }
-            }
-        }?.info
+        return null
     }
 
     override suspend fun suggestNames(query: String, limit: Int): List<MedicineNameSuggestion> {
@@ -132,11 +112,101 @@ class LocalMedicineInfoRepository(
                 }
             }
 
-        return (localSuggestions + remoteSuggestions)
+        val groqSuggestions = if (localSuggestions.size + remoteSuggestions.size < limit) {
+            runCatching {
+                GroqClient.suggestMedicineNames(query, currentLanguageTag(), limit)
+            }.getOrDefault(emptyList())
+                .map { name -> MedicineNameSuggestion(name = name, source = "Groq") }
+        } else {
+            emptyList()
+        }
+
+        return (localSuggestions + remoteSuggestions + groqSuggestions)
             .filter { scoreMatch(normalized, normalize(it.name)) > 0 }
             .sortedByDescending { scoreMatch(normalized, normalize(it.name)) }
             .distinctBy { normalize(it.name) }
             .take(limit)
+    }
+
+    override suspend fun summarizeWithAi(query: String, useAppLanguage: Boolean, preferHinglish: Boolean, detailed: Boolean): MedicineInfo? {
+        val normalized = normalize(query)
+        val lang = if (useAppLanguage) currentLanguageTag() else "en"
+        val trusted = lookupTrusted(query) ?: return null
+
+        // Try cached AI summary first
+        aiCache.load(normalized, lang)?.let { return it }
+
+        if (!GroqClient.isConfigured()) return null
+
+        val summary = runCatching {
+            GroqClient.summarizeMedicineInfo(trusted, lang, preferHinglish, detailed)
+        }.getOrNull()
+
+        summary?.let { aiCache.save(normalized, lang, it) }
+        return summary
+    }
+
+    override suspend fun cacheAiSummary(query: String, info: MedicineInfo): Boolean {
+        val normalized = normalize(query)
+        val lang = currentLanguageTag()
+        return try {
+            aiCache.save(normalized, lang, info)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private suspend fun lookupTrusted(query: String): MedicineInfo? {
+        val normalized = normalize(query)
+        if (normalized.isBlank()) return null
+
+        remoteMedicineRepository?.let { repo ->
+            try {
+                val remoteMedicine = repo.getMedicineById(normalized)
+                    ?: repo.searchMedicines(query).firstOrNull()?.firstOrNull()
+                if (remoteMedicine != null) {
+                    return MedicineInfo(
+                        displayName = remoteMedicine.displayName,
+                        commonUses = remoteMedicine.commonUses.split("\n").filter { it.isNotBlank() },
+                        commonSideEffects = remoteMedicine.commonSideEffects.split("\n").filter { it.isNotBlank() },
+                        warnings = remoteMedicine.warnings.split("\n").filter { it.isNotBlank() },
+                        storageGuidance = remoteMedicine.storageGuidance,
+                        sourceName = remoteMedicine.sourceName,
+                        disclaimer = remoteMedicine.disclaimer
+                    )
+                }
+            } catch (e: Exception) {
+                Log.d("MedicineInfoRepository", "Remote lookup failed, using local fallback: ${e.message}")
+            }
+        }
+
+        val exactMatch = supportedMedicines.firstOrNull { entry ->
+            val candidateKeys = listOf(entry.displayName) + entry.aliases
+            candidateKeys.any { normalize(it) == normalized }
+        }
+        if (exactMatch != null) return exactMatch.info
+
+        val containsMatch = supportedMedicines.firstOrNull { entry ->
+            val candidateKeys = listOf(entry.displayName) + entry.aliases
+            candidateKeys.any { key ->
+                val normalizedKey = normalize(key)
+                normalized.contains(normalizedKey) || normalizedKey.contains(normalized)
+            }
+        }
+        if (containsMatch != null) return containsMatch.info
+
+        val tokenized = normalized.split(" ", ",", "+", "-", "(", ")", "/")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        return supportedMedicines.firstOrNull { entry ->
+            val candidateKeys = listOf(entry.displayName) + entry.aliases
+            candidateKeys.any { key ->
+                val normalizedKey = normalize(key)
+                tokenized.any { token -> token.length >= 4 && normalizedKey.contains(token) }
+            }
+        }?.info
     }
 
     private fun loadEntries(): List<Entry> {
@@ -254,6 +324,10 @@ class LocalMedicineInfoRepository(
             query.split(" ").any { token -> token.length >= 3 && candidate.contains(token) } -> 45
             else -> 0
         }
+    }
+
+    private fun currentLanguageTag(): String {
+        return context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
     }
 
     private fun extractDosageHint(entity: com.example.medicinreminder.data.entity.RemoteMedicineEntity): String {

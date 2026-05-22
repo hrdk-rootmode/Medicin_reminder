@@ -1,7 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun buildConfigString(name: String): String {
+    val value = localProperties.getProperty(name).orEmpty()
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+    return "\"$value\""
 }
 
 android {
@@ -18,6 +34,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "OPEN_FDA_API_KEY", buildConfigString("OPEN_FDA_API_KEY"))
+        buildConfigField("String", "GROQ_API_KEY", buildConfigString("GROQ_API_KEY"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,6 +55,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }

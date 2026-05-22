@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,6 +88,7 @@ import com.example.medicinreminder.data.ocr.MedicineOcrSuggestion
 import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.notifications.ReminderScheduler
 import com.example.medicinreminder.ui.navigation.Screen
+import com.example.medicinreminder.data.api.GroqClient
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -142,6 +144,11 @@ fun ScanAddScreen(
     var ocrText by remember { mutableStateOf("") }
     var ocrSuggestion by remember { mutableStateOf(MedicineOcrSuggestion()) }
     var medicineInfo by remember { mutableStateOf<MedicineInfo?>(null) }
+    var groqSummary by remember { mutableStateOf<MedicineInfo?>(null) }
+    var groqSummaryLoading by remember { mutableStateOf(false) }
+    var groqSummaryError by remember { mutableStateOf<String?>(null) }
+    var groqSummaryTrusted by remember { mutableStateOf<MedicineInfo?>(null) }
+    var groqSummaryOpenFda by remember { mutableStateOf<MedicineInfo?>(null) }
     var openFdaInfo by remember { mutableStateOf<OpenFdaMedicineInfo?>(null) }
     var openFdaLoading by remember { mutableStateOf(false) }
     var openFdaError by remember { mutableStateOf<String?>(null) }
@@ -233,6 +240,47 @@ fun ScanAddScreen(
             notesAutoFilled = true
         }
         if (reminderTime == "08:00" && ocrSuggestion.timeHint.isNotBlank()) reminderTime = ocrSuggestion.timeHint
+
+        // After OCR parse, automatically call the AI summarizer (if configured) to improve identification
+        if (GroqClient.isConfigured()) {
+            groqSummaryError = null
+            scope.launch {
+                groqSummaryLoading = true
+                val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                val ai = runCatching {
+                    GroqClient.summarizeOcrText(ocrText = text, medicineName = parsedSuggestion.title.ifBlank { "" }, languageTag = languageTag, preferHinglish = false, detailed = true)
+                }.getOrNull()
+                if (ai != null) {
+                    groqSummary = ai
+                    // Auto-fill the title if OCR didn't and AI has a confident display name
+                    if (title.isBlank() && ai.displayName.isNotBlank()) {
+                        title = ai.displayName
+                        titleField = TextFieldValue(ai.displayName, selection = TextRange(ai.displayName.length))
+                        titleAutoFilled = true
+                    }
+                    // Use first common use as a best-effort dosage/hint if dosage not found
+                    if (dosageText.isBlank()) {
+                        val possibleDosage = ai.commonUses.firstOrNull()?.takeIf { it.length <= 80 }
+                        if (!possibleDosage.isNullOrBlank()) {
+                            dosageText = possibleDosage
+                            dosageField = TextFieldValue(dosageText, selection = TextRange(dosageText.length))
+                            dosageAutoFilled = true
+                        }
+                    }
+                    // Populate notes from common uses + warnings if notes empty
+                    if (notes.isBlank()) {
+                        val combined = (ai.commonUses + ai.warnings).filter { it.isNotBlank() }.joinToString("\n")
+                        if (combined.isNotBlank()) {
+                            notes = combined
+                            notesAutoFilled = true
+                        }
+                    }
+                } else {
+                    groqSummaryError = "AI summary unavailable."
+                }
+                groqSummaryLoading = false
+            }
+        }
     }
 
     fun processBitmap(bitmap: Bitmap) {
@@ -452,30 +500,30 @@ fun ScanAddScreen(
                             }
                         }
 
-                                OutlinedTextField(
-                                    value = titleField,
-                                    onValueChange = {
-                                        titleField = it
-                                        title = it.text
-                                        titleAutoFilled = false
-                                    },
-                                    label = { Text(stringResource(R.string.medicine_name)) },
-                                    supportingText = { Text(stringResource(R.string.medicine_name_hint)) },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
-                                        focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                                    ),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    trailingIcon = {
-                                        androidx.compose.material3.IconButton(onClick = {
-                                            val t = titleField.text
-                                            titleField = titleField.copy(selection = TextRange(0, t.length))
-                                        }) {
-                                            androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
-                                        }
-                                    }
-                                )
+                        OutlinedTextField(
+                            value = titleField,
+                            onValueChange = {
+                                titleField = it
+                                title = it.text
+                                titleAutoFilled = false
+                            },
+                            label = { Text(stringResource(R.string.medicine_name)) },
+                            supportingText = { Text(stringResource(R.string.medicine_name_hint)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+                                focusedContainerColor = if (titleAutoFilled) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            trailingIcon = {
+                                androidx.compose.material3.IconButton(onClick = {
+                                    val t = titleField.text
+                                    titleField = titleField.copy(selection = TextRange(0, t.length))
+                                }) {
+                                    androidx.compose.material3.Icon(imageVector = Icons.Default.Info, contentDescription = stringResource(R.string.select_all))
+                                }
+                            }
+                        )
 
                         if (suggestionLoading) {
                             Text(stringResource(R.string.finding_medicines), style = MaterialTheme.typography.bodySmall)
@@ -609,20 +657,89 @@ fun ScanAddScreen(
                         )
 
                         if (ocrText.isNotBlank()) {
-                            Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
+                                OutlinedButton(onClick = {
+                                    groqSummaryError = null
+                                    scope.launch {
+                                        groqSummaryLoading = true
+                                        val queryName = title.trim().ifBlank { ocrSuggestion.title.trim() }
+                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                        groqSummary = runCatching {
+                                            medicineInfo?.let {
+                                                GroqClient.summarizeMedicineInfo(it, languageTag, preferHinglish = false, detailed = true)
+                                            } ?: GroqClient.summarizeOcrText(ocrText = ocrText, medicineName = queryName.ifBlank { "Medicine" }, languageTag = languageTag, preferHinglish = false, detailed = true)
+                                        }.getOrNull()
+                                        groqSummaryError = if (groqSummary == null) "AI summary unavailable." else null
+                                        groqSummaryLoading = false
+                                    }
+                                }) { Text("AI") }
+                            }
                             Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp) {
                                 Text(text = ocrText, modifier = Modifier.padding(12.dp))
                             }
+                            if (groqSummaryLoading) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator()
+                                    Text("Generating AI summary...")
+                                }
+                            }
+                            groqSummaryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            groqSummary?.let { summary ->
+                                Text(text = stringResource(R.string.ai_summary), style = MaterialTheme.typography.titleMedium)
+                                MedicineInfoPreview(medicineInfo = summary)
+                            }
                         }
 
-                        Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
+                            if (medicineInfo != null) {
+                                OutlinedButton(onClick = {
+                                    groqSummaryError = null
+                                    scope.launch {
+                                        groqSummaryLoading = true
+                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                        groqSummaryTrusted = runCatching {
+                                            GroqClient.summarizeMedicineInfo(medicineInfo!!, languageTag, preferHinglish = false, detailed = true)
+                                        }.getOrNull()
+                                        groqSummaryError = if (groqSummaryTrusted == null) "AI summary unavailable." else null
+                                        groqSummaryLoading = false
+                                    }
+                                }) { Text("AI") }
+                            }
+                        }
                         if (medicineInfo == null || title.isBlank()) {
                             Text(stringResource(R.string.trusted_medicine_info_hint))
                         } else {
                             MedicineInfoPreview(medicineInfo = medicineInfo!!)
+                            groqSummaryTrusted?.let { summary ->
+                                Text(text = stringResource(R.string.ai_summary), style = MaterialTheme.typography.titleMedium)
+                                MedicineInfoPreview(medicineInfo = summary)
+                            }
                         }
 
-                        Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
+                            if (openFdaInfo != null) {
+                                OutlinedButton(onClick = {
+                                    groqSummaryError = null
+                                    scope.launch {
+                                        groqSummaryLoading = true
+                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                        val mapped = OpenFdaToMedicine(openFdaInfo!!)
+                                        groqSummaryOpenFda = runCatching {
+                                            GroqClient.summarizeMedicineInfo(mapped, languageTag, preferHinglish = false, detailed = true)
+                                        }.getOrNull()
+                                        groqSummaryError = if (groqSummaryOpenFda == null) "AI summary unavailable." else null
+                                        groqSummaryLoading = false
+                                    }
+                                }) { Text("AI") }
+                            }
+                        }
                         when {
                             openFdaLoading -> {
                                 Row(
@@ -635,6 +752,10 @@ fun ScanAddScreen(
                             }
                             openFdaInfo != null -> {
                                 OpenFdaInfoCard(openFdaInfo = openFdaInfo!!)
+                                groqSummaryOpenFda?.let { summary ->
+                                    Text(text = stringResource(R.string.ai_summary), style = MaterialTheme.typography.titleMedium)
+                                    MedicineInfoPreview(medicineInfo = summary)
+                                }
                             }
                             openFdaError != null -> {
                                 Text(openFdaError!!, style = MaterialTheme.typography.bodySmall)
@@ -1024,3 +1145,15 @@ private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
         addOnSuccessListener { result -> continuation.resume(result) }
         addOnFailureListener { exception -> continuation.resumeWithException(exception) }
     }
+
+private fun OpenFdaToMedicine(open: OpenFdaMedicineInfo): MedicineInfo {
+    return MedicineInfo(
+        displayName = open.displayName,
+        commonUses = listOfNotNull(open.purpose).flatMap { it.split('\n') }.map { it.trim() }.filter { it.isNotEmpty() },
+        commonSideEffects = listOfNotNull(open.adverseReactions).flatMap { it.split('\n') }.map { it.trim() }.filter { it.isNotEmpty() },
+        warnings = listOfNotNull(open.warnings).flatMap { it.split('\n') }.map { it.trim() }.filter { it.isNotEmpty() },
+        storageGuidance = open.storageAndHandling ?: "",
+        sourceName = open.sourceName ?: "OpenFDA",
+        disclaimer = "Based on OpenFDA label data"
+    )
+}

@@ -1,6 +1,7 @@
 package com.example.medicinreminder.data.api
 
 import android.util.Log
+import com.example.medicinreminder.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -10,7 +11,9 @@ import java.util.concurrent.TimeUnit
 object OpenFDAClient {
     private const val BASE_URL = "https://api.fda.gov/"
     private const val TAG = "OpenFDAClient"
-    const val API_KEY = "6tyI9q6cD14VzXnYD53VSJeWpy4Nl5S97DEXtskN"
+
+    val apiKey: String
+        get() = BuildConfig.OPEN_FDA_API_KEY.trim()
     
     private val loggingInterceptor = HttpLoggingInterceptor { message ->
         Log.d(TAG, message)

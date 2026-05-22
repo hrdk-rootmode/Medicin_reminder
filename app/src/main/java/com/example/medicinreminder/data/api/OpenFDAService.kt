@@ -9,7 +9,7 @@ interface OpenFDAService {
     @GET("drug/label.json")
     suspend fun searchDrugsLabel(
         @Query("search") query: String,
-        @Query("api_key") apiKey: String,
+        @Query("api_key") apiKey: String? = null,
         @Query("sort") sort: String = "effective_time:desc",
         @Query("limit") limit: Int = 10
     ): OpenFDAResponse
@@ -18,7 +18,7 @@ interface OpenFDAService {
     @GET("drug/drugsfda.json")
     suspend fun searchDrugsFDA(
         @Query("search") query: String,
-        @Query("api_key") apiKey: String,
+        @Query("api_key") apiKey: String? = null,
         @Query("limit") limit: Int = 5
     ): OpenFDAResponse
 }
