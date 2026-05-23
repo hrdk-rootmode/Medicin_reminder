@@ -24,7 +24,7 @@ class AppContainer(context: Context) {
     
     val medicineRepository: MedicineRepository = MedicineRepository(medicineDao)
     val reminderRepository: ReminderRepository = ReminderRepository(reminderScheduleDao, doseLogDao)
-    val entitlementRepository: EntitlementRepository = EntitlementRepository(userEntitlementDao)
+    val entitlementRepository: EntitlementRepository = EntitlementRepository(userEntitlementDao, appContext)
     val remoteMedicineRepository: RemoteMedicineRepository = RemoteMedicineRepository(remoteMedicineDao)
     val medicineInfoRepository: MedicineInfoRepository = LocalMedicineInfoRepository(appContext, remoteMedicineRepository)
     

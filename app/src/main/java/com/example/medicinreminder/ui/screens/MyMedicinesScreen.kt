@@ -5,16 +5,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -29,6 +34,7 @@ import com.example.medicinreminder.notifications.TimeOfDayPeriod
 import com.example.medicinreminder.ui.model.LocaleOption
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.firstOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +50,7 @@ fun MyMedicinesScreen(
     var selectedMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var alertSettingsMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var pendingDisableMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
+    var pendingDeleteMedicine by remember { mutableStateOf<MedicineEntity?>(null) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var selectedLanguageTag by remember { mutableStateOf<String?>(null) }
     val languageOptions = remember {
@@ -65,16 +72,33 @@ fun MyMedicinesScreen(
         )
     }
     val schedulesByMedicine = remember(schedules) { schedules.groupBy { it.medicineId } }
-    val groupedMedicines = remember(medicines, schedulesByMedicine) {
-        periodOrder.associateWith { period ->
-            medicines.filter { medicine ->
-                schedulesByMedicine[medicine.id].orEmpty()
-                    .any { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+
+    val groupedMedicines by remember(medicines, schedulesByMedicine) {
+        derivedStateOf {
+            periodOrder.associateWith { period ->
+                medicines.filter { medicine ->
+                    schedulesByMedicine[medicine.id].orEmpty()
+                        .any { TimeOfDayPeriod.fromTime(it.timeOfDay) == period }
+                }
             }
         }
     }
-    val otherMedicines = remember(medicines, schedulesByMedicine) {
-        medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() }
+
+    val otherMedicines by remember(medicines, schedulesByMedicine) {
+        derivedStateOf { medicines.filter { medicine -> schedulesByMedicine[medicine.id].isNullOrEmpty() } }
+    }
+
+    // Precompute normalized groups per period to avoid repeated groupBy during recomposition
+    val normalizedGroupsByPeriod by remember(medicines, schedulesByMedicine) {
+        derivedStateOf {
+            periodOrder.associateWith { period ->
+                groupedMedicines[period].orEmpty().groupBy { it.normalizedTitle }
+            }
+        }
+    }
+
+    val normalizedGroupsOther by remember(otherMedicines) {
+        derivedStateOf { otherMedicines.groupBy { it.normalizedTitle } }
     }
 
     LaunchedEffect(Unit) {
@@ -85,9 +109,15 @@ fun MyMedicinesScreen(
         ?: R.string.language_system_default
     
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.my_medicines_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 actions = {
                     TextButton(onClick = { showLanguageDialog = true }) {
                         Text(stringResource(R.string.language_picker_action))
@@ -126,7 +156,12 @@ fun MyMedicinesScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+                    )
+                ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.language_picker_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(stringResource(R.string.language_picker_current, stringResource(selectedLanguageLabelRes)), style = MaterialTheme.typography.bodySmall)
@@ -141,7 +176,12 @@ fun MyMedicinesScreen(
                 EntitlementCard(
                     entitlement = entitlement,
                     onUpgradeClick = { /* TODO: Launch billing flow */ },
-                    onRestoreClick = { /* TODO: Restore purchase */ }
+                    onRestoreClick = { /* TODO: Restore purchase */ },
+                    onDevToggle = { enabled ->
+                        scope.launch {
+                            appContainer.entitlementRepository.updatePremiumStatus(enabled)
+                        }
+                    }
                 )
             }
             
@@ -171,19 +211,23 @@ fun MyMedicinesScreen(
                         item(key = "header_${period.name}") {
                             MedicineCategoryHeader(
                                 title = period.displayName,
-                                count = medicinesInPeriod.size
+                                count = normalizedGroupsByPeriod[period].orEmpty().size
                             )
                         }
-
-                        items(items = medicinesInPeriod, key = { "${period.name}_${it.id}" }) { medicine ->
+                        val grouped = normalizedGroupsByPeriod[period].orEmpty()
+                        val distinctList = grouped.values.map { it.first() }
+                        items(items = distinctList, key = { "${period.name}_${it.id}" }) { medicine ->
+                            val dupCount = grouped[medicine.normalizedTitle]?.size ?: 1
                             MedicineLibraryCard(
                                 medicine = medicine,
                                 schedules = schedulesByMedicine[medicine.id].orEmpty()
                                     .filter { TimeOfDayPeriod.fromTime(it.timeOfDay) == period },
                                 isArchived = medicine.isArchived,
+                                duplicateCount = dupCount,
                                 onClick = { selectedMedicine = medicine },
                                 onAlertSettingsClick = { alertSettingsMedicine = medicine },
                                 onDisableRequest = { pendingDisableMedicine = medicine },
+                                onDeleteRequest = { pendingDeleteMedicine = medicine },
                                 onEnable = {
                                     scope.launch {
                                         appContainer.medicineRepository.unarchiveMedicine(medicine.id)
@@ -196,16 +240,24 @@ fun MyMedicinesScreen(
 
                 if (otherMedicines.isNotEmpty()) {
                     item(key = "header_other") {
-                        MedicineCategoryHeader(title = "Other / As Needed", count = otherMedicines.size)
+                        MedicineCategoryHeader(
+                            title = "Other / As Needed",
+                            count = normalizedGroupsOther.values.size
+                        )
                     }
-                    items(items = otherMedicines, key = { "other_${it.id}" }) { medicine ->
+                    val groupedOther = normalizedGroupsOther
+                    val distinctOther = groupedOther.values.map { it.first() }
+                    items(items = distinctOther, key = { "other_${it.id}" }) { medicine ->
+                        val dupCount = groupedOther[medicine.normalizedTitle]?.size ?: 1
                         MedicineLibraryCard(
                             medicine = medicine,
                             schedules = emptyList(),
                             isArchived = medicine.isArchived,
+                            duplicateCount = dupCount,
                             onClick = { selectedMedicine = medicine },
                             onAlertSettingsClick = { alertSettingsMedicine = medicine },
                             onDisableRequest = { pendingDisableMedicine = medicine },
+                            onDeleteRequest = { pendingDeleteMedicine = medicine },
                             onEnable = {
                                 scope.launch {
                                     appContainer.medicineRepository.unarchiveMedicine(medicine.id)
@@ -241,41 +293,101 @@ fun MyMedicinesScreen(
         )
     }
 
-    if (showLanguageDialog) {
+    pendingDeleteMedicine?.let { medicine ->
         AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = { Text(stringResource(R.string.language_picker_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    languageOptions.forEach { option ->
-                        TextButton(onClick = {
-                            selectedLanguageTag = option.tag
-                            scope.launch {
-                                LanguagePreferences.setLanguageTag(context, option.tag)
-                                AppCompatDelegate.setApplicationLocales(
-                                    if (option.tag.isNullOrBlank()) {
-                                        LocaleListCompat.getEmptyLocaleList()
-                                    } else {
-                                        LocaleListCompat.forLanguageTags(option.tag)
-                                    }
-                                )
-                                // Recreate the hosting Activity so resources and Compose recompose
-                                (context as? android.app.Activity)?.recreate()
-                                showLanguageDialog = false
-                            }
-                        }) {
-                            Text(stringResource(option.labelRes))
+            onDismissRequest = { pendingDeleteMedicine = null },
+            title = { Text(stringResource(R.string.delete_medicine_title)) },
+            text = { Text(stringResource(R.string.delete_medicine_message, medicine.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val schedulesToDelete = appContainer.reminderRepository.getSchedulesForMedicine(medicine.id).firstOrNull().orEmpty()
+                        schedulesToDelete.forEach { schedule ->
+                            appContainer.reminderRepository.deleteSchedule(schedule)
                         }
+                        appContainer.reminderRepository.deleteLogsForMedicine(medicine.id)
+                        appContainer.medicineRepository.deleteMedicine(medicine)
+                        pendingDeleteMedicine = null
                     }
+                }) {
+                    Text(stringResource(R.string.delete))
                 }
             },
-            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
+                TextButton(onClick = { pendingDeleteMedicine = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
         )
+    }
+
+    if (showLanguageDialog) {
+        Dialog(onDismissRequest = { showLanguageDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 360.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.language_picker_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = stringResource(R.string.language_picker_current, stringResource(selectedLanguageLabelRes)),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        languageOptions.forEach { option ->
+                            Button(
+                                onClick = {
+                                    selectedLanguageTag = option.tag
+                                    scope.launch {
+                                        LanguagePreferences.setLanguageTag(context, option.tag)
+                                        AppCompatDelegate.setApplicationLocales(
+                                            if (option.tag.isNullOrBlank()) {
+                                                LocaleListCompat.getEmptyLocaleList()
+                                            } else {
+                                                LocaleListCompat.forLanguageTags(option.tag)
+                                            }
+                                        )
+                                        (context as? android.app.Activity)?.recreate()
+                                        showLanguageDialog = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(option.labelRes),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { showLanguageDialog = false },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            }
+        }
     }
 
     selectedMedicine?.let { medicine ->
@@ -379,13 +491,14 @@ fun MyMedicinesScreen(
 fun EntitlementCard(
     entitlement: UserEntitlementEntity?,
     onUpgradeClick: () -> Unit = {},
-    onRestoreClick: () -> Unit = {}
+    onRestoreClick: () -> Unit = {},
+    onDevToggle: (Boolean) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (entitlement?.isPremium == true) 
-                MaterialTheme.colorScheme.primaryContainer 
+            containerColor = if (entitlement?.l1f3t1m3_flag == true) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
             else 
                 MaterialTheme.colorScheme.surfaceVariant
         )
@@ -393,17 +506,56 @@ fun EntitlementCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = if (entitlement?.isPremium == true) stringResource(R.string.premium_active) else stringResource(R.string.free_plan),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.active_reminders, entitlement?.activeReminderLimit ?: 5),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            if (entitlement?.isPremium == false) {
+            val trialDaysRemaining = remember(entitlement) {
+                entitlement?.let {
+                    val now = System.currentTimeMillis()
+                    val remaining = ((it.trialEnd - now) / (24 * 60 * 60 * 1000)).toInt()
+                    if (remaining > 0) remaining else 0
+                } ?: 0
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (entitlement?.l1f3t1m3_flag == true) stringResource(R.string.premium_active) else stringResource(R.string.free_plan),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (entitlement?.l1f3t1m3_flag == true) {
+                            stringResource(R.string.unlimited_reminders)
+                        } else {
+                            stringResource(R.string.active_reminders, entitlement?.activeReminderLimit ?: 5)
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                if (trialDaysRemaining > 0) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = trialDaysRemaining.toString(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = stringResource(R.string.days_left_short),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+            if (com.example.medicinreminder.BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Dev Premium", modifier = Modifier.weight(1f))
+                    val devEnabled = entitlement?.l1f3t1m3_flag == true
+                    Switch(checked = devEnabled, onCheckedChange = { onDevToggle(it) })
+                }
+            }
+            if (entitlement?.l1f3t1m3_flag == false) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onUpgradeClick,
@@ -431,18 +583,25 @@ fun EntitlementCard(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun MedicineLibraryCard(
     medicine: MedicineEntity,
     schedules: List<ReminderScheduleEntity>,
     isArchived: Boolean = false,
+    duplicateCount: Int = 1,
     onClick: () -> Unit,
     onAlertSettingsClick: () -> Unit,
     onDisableRequest: () -> Unit,
+    onDeleteRequest: () -> Unit,
     onEnable: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onDeleteRequest
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
@@ -456,7 +615,8 @@ fun MedicineLibraryCard(
                     AsyncImage(
                         model = medicine.imageUri,
                         contentDescription = medicine.title,
-                        modifier = Modifier.size(72.dp)
+                        modifier = Modifier.size(72.dp),
+                        contentScale = ContentScale.Crop
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
@@ -467,11 +627,20 @@ fun MedicineLibraryCard(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
                         )
+                        if (duplicateCount > 1) {
+                            Text(
+                                text = "(${duplicateCount})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
                         if (isArchived) {
                             Text(
                                 text = stringResource(R.string.disabled),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(start = 8.dp)
                             )
                         }
                     }
@@ -492,8 +661,9 @@ fun MedicineLibraryCard(
                 )
             }
             if (schedules.isNotEmpty()) {
+                val scheduleSummary = remember(schedules) { schedules.joinToString(" • ") { it.toReadableSummary() } }
                 Text(
-                    text = schedules.joinToString(" • ") { it.toReadableSummary() },
+                    text = scheduleSummary,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )

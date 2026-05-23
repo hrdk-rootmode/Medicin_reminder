@@ -21,7 +21,10 @@
     <string name="no_medicines_added_yet">No medicines added yet</string>
     <string name="disable_medicine_title">Disable medicine</string>
     <string name="disable_medicine_message">Disable %1$s? This will stop its active reminders until you enable it again.</string>
+    <string name="delete_medicine_title">Delete medicine</string>
+    <string name="delete_medicine_message">Delete %1$s permanently? This will remove its schedules and reminder history too.</string>
     <string name="disable">Disable</string>
+    <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="alert_settings_for">Alert settings for %1$s</string>
     <string name="repeat_alert_times">Repeat alert: %1$d times</string>
@@ -31,6 +34,8 @@
     <string name="free_plan">Free Plan</string>
     <string name="premium_active">Premium Active</string>
     <string name="active_reminders">Active reminders: %1$d</string>
+    <string name="unlimited_reminders">Unlimited reminders</string>
+    <string name="days_left_short">days left</string>
     <string name="upgrade_to_premium">Upgrade to Premium</string>
     <string name="restore_purchase">Restore Purchase</string>
     <string name="thanks_for_supporting_us">Thank you for supporting us!</string>

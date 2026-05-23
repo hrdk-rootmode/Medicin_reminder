@@ -38,6 +38,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Divider
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -47,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
@@ -159,7 +161,12 @@ fun ScanAddScreen(
     var titleAutoFilled by remember { mutableStateOf(false) }
     var dosageAutoFilled by remember { mutableStateOf(false) }
     var notesAutoFilled by remember { mutableStateOf(false) }
-    var floatingButtonAnchorRight by rememberSaveable { mutableStateOf(true) }
+    var floatingButtonAnchorRight by remember { mutableStateOf(true) }
+    // Load persisted anchor preference
+    LaunchedEffect(Unit) {
+        val saved = runCatching { com.example.medicinreminder.data.settings.UiPreferences.getFloatingButtonAnchorRight(context) }.getOrNull()
+        if (saved != null) floatingButtonAnchorRight = saved
+    }
 
     val weekdays = listOf(
         1 to "Mon",
@@ -407,7 +414,17 @@ fun ScanAddScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.add_medicine_title)) }) }
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.add_medicine_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
     ) { paddingValues ->
         BoxWithConstraints(
             modifier = Modifier
@@ -663,21 +680,26 @@ fun ScanAddScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(text = stringResource(R.string.ocr_result), style = MaterialTheme.typography.titleMedium)
-                                OutlinedButton(onClick = {
-                                    groqSummaryError = null
-                                    scope.launch {
-                                        groqSummaryLoading = true
-                                        val queryName = title.trim().ifBlank { ocrSuggestion.title.trim() }
-                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
-                                        groqSummary = runCatching {
-                                            medicineInfo?.let {
-                                                GroqClient.summarizeMedicineInfo(it, languageTag, preferHinglish = false, detailed = true)
-                                            } ?: GroqClient.summarizeOcrText(ocrText = ocrText, medicineName = queryName.ifBlank { "Medicine" }, languageTag = languageTag, preferHinglish = false, detailed = true)
-                                        }.getOrNull()
-                                        groqSummaryError = if (groqSummary == null) "AI summary unavailable." else null
-                                        groqSummaryLoading = false
-                                    }
-                                }) { Text("AI") }
+                                IconButton(
+                                    onClick = {
+                                        groqSummaryError = null
+                                        scope.launch {
+                                            groqSummaryLoading = true
+                                            val queryName = title.trim().ifBlank { ocrSuggestion.title.trim() }
+                                            val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                            groqSummary = runCatching {
+                                                medicineInfo?.let {
+                                                    GroqClient.summarizeMedicineInfo(it, languageTag, preferHinglish = false, detailed = true)
+                                                } ?: GroqClient.summarizeOcrText(ocrText = ocrText, medicineName = queryName.ifBlank { "Medicine" }, languageTag = languageTag, preferHinglish = false, detailed = true)
+                                            }.getOrNull()
+                                            groqSummaryError = if (groqSummary == null) "AI summary unavailable." else null
+                                            groqSummaryLoading = false
+                                        }
+                                    },
+                                    enabled = GroqClient.isConfigured() && !groqSummaryLoading
+                                ) {
+                                    Icon(imageVector = Icons.Filled.Info, contentDescription = stringResource(R.string.summarize_with_ai))
+                                }
                             }
                             Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp) {
                                 Text(text = ocrText, modifier = Modifier.padding(12.dp))
@@ -698,18 +720,23 @@ fun ScanAddScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.trusted_medicine_info), style = MaterialTheme.typography.titleLarge)
                             if (medicineInfo != null) {
-                                OutlinedButton(onClick = {
-                                    groqSummaryError = null
-                                    scope.launch {
-                                        groqSummaryLoading = true
-                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
-                                        groqSummaryTrusted = runCatching {
-                                            GroqClient.summarizeMedicineInfo(medicineInfo!!, languageTag, preferHinglish = false, detailed = true)
-                                        }.getOrNull()
-                                        groqSummaryError = if (groqSummaryTrusted == null) "AI summary unavailable." else null
-                                        groqSummaryLoading = false
-                                    }
-                                }) { Text("AI") }
+                                IconButton(
+                                    onClick = {
+                                        groqSummaryError = null
+                                        scope.launch {
+                                            groqSummaryLoading = true
+                                            val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                            groqSummaryTrusted = runCatching {
+                                                GroqClient.summarizeMedicineInfo(medicineInfo!!, languageTag, preferHinglish = false, detailed = true)
+                                            }.getOrNull()
+                                            groqSummaryError = if (groqSummaryTrusted == null) "AI summary unavailable." else null
+                                            groqSummaryLoading = false
+                                        }
+                                    },
+                                    enabled = GroqClient.isConfigured() && !groqSummaryLoading
+                                ) {
+                                    Icon(imageVector = Icons.Filled.Info, contentDescription = stringResource(R.string.summarize_with_ai))
+                                }
                             }
                         }
                         if (medicineInfo == null || title.isBlank()) {
@@ -725,19 +752,24 @@ fun ScanAddScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.openfda_title), style = MaterialTheme.typography.titleLarge)
                             if (openFdaInfo != null) {
-                                OutlinedButton(onClick = {
-                                    groqSummaryError = null
-                                    scope.launch {
-                                        groqSummaryLoading = true
-                                        val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
-                                        val mapped = OpenFdaToMedicine(openFdaInfo!!)
-                                        groqSummaryOpenFda = runCatching {
-                                            GroqClient.summarizeMedicineInfo(mapped, languageTag, preferHinglish = false, detailed = true)
-                                        }.getOrNull()
-                                        groqSummaryError = if (groqSummaryOpenFda == null) "AI summary unavailable." else null
-                                        groqSummaryLoading = false
-                                    }
-                                }) { Text("AI") }
+                                IconButton(
+                                    onClick = {
+                                        groqSummaryError = null
+                                        scope.launch {
+                                            groqSummaryLoading = true
+                                            val languageTag = context.resources.configuration.locales[0]?.toLanguageTag().orEmpty().ifBlank { "en" }
+                                            val mapped = OpenFdaToMedicine(openFdaInfo!!)
+                                            groqSummaryOpenFda = runCatching {
+                                                GroqClient.summarizeMedicineInfo(mapped, languageTag, preferHinglish = false, detailed = true)
+                                            }.getOrNull()
+                                            groqSummaryError = if (groqSummaryOpenFda == null) "AI summary unavailable." else null
+                                            groqSummaryLoading = false
+                                        }
+                                    },
+                                    enabled = GroqClient.isConfigured() && !groqSummaryLoading
+                                ) {
+                                    Icon(imageVector = Icons.Filled.Info, contentDescription = stringResource(R.string.summarize_with_ai))
+                                }
                             }
                         }
                         when {
@@ -868,7 +900,12 @@ fun ScanAddScreen(
 
             DraggableBackButton(
                 anchoredToRight = floatingButtonAnchorRight,
-                onAnchorChange = { floatingButtonAnchorRight = it },
+                onAnchorChange = { right ->
+                    floatingButtonAnchorRight = right
+                    scope.launch {
+                        runCatching { com.example.medicinreminder.data.settings.UiPreferences.setFloatingButtonAnchorRight(context, right) }
+                    }
+                },
                 onBack = {
                     navController.navigate(Screen.Today.route) {
                         launchSingleTop = true
@@ -920,7 +957,7 @@ private fun DoseTableSection(
 }
 
 @Composable
-private fun MedicineInfoPreview(medicineInfo: MedicineInfo) {
+fun MedicineInfoPreview(medicineInfo: MedicineInfo) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = medicineInfo.displayName, style = MaterialTheme.typography.titleLarge)
         SimpleBulletCard("Common uses", medicineInfo.commonUses)

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -25,9 +26,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -203,9 +206,15 @@ fun TodayScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.today_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 actions = {
                     Text(
                         text = stringResource(R.string.active_reminders_suffix, activeReminderCount),
@@ -216,7 +225,10 @@ fun TodayScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) {
                 NavigationBarItem(
                     selected = true,
                     onClick = { },
@@ -245,18 +257,42 @@ fun TodayScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.20f)
+                    )
                 ) {
-                    Text(
-                        text = stringResource(R.string.no_medicines_yet),
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        text = stringResource(R.string.tap_add_medicine),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_medicines_yet),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = stringResource(R.string.tap_add_medicine),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Button(
+                            onClick = { navController.navigate("scan_add") },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text(stringResource(R.string.add_medicine_title))
+                        }
+                        OutlinedButton(onClick = { navController.navigate("scan_add") }) {
+                            Text(stringResource(R.string.scan_or_add_quickly))
+                        }
+                    }
                 }
             }
         } else {
@@ -451,7 +487,11 @@ fun MedicineCard(
         isDimmed -> 0.58f
         else -> 1f
     }
-    val cardColor = if (medicine.isArchived) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val cardColor = if (medicine.isArchived) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.16f)
+    }
 
     Card(
         modifier = Modifier
@@ -502,7 +542,14 @@ fun MedicineCard(
                     }
                 }
                 if (medicine.isArchived) {
-                    Button(onClick = onToggleArchive, modifier = Modifier.padding(start = 4.dp)) {
+                    Button(
+                        onClick = onToggleArchive,
+                        modifier = Modifier.padding(start = 4.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
                         Text(stringResource(R.string.enable))
                     }
                 }

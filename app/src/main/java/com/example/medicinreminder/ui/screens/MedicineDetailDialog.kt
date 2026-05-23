@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -74,13 +76,9 @@ fun MedicineDetailDialog(
     var imageUri by remember(medicine.id) { mutableStateOf(medicine.imageUri.orEmpty()) }
     var infoText by remember { mutableStateOf<MedicineEntity?>(null) }
     var info by remember { mutableStateOf<com.example.medicinreminder.data.model.MedicineInfo?>(null) }
-    var useAi by remember { mutableStateOf(false) }
     var aiInfo by remember { mutableStateOf<MedicineInfo?>(null) }
     var aiLoading by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf<String?>(null) }
-    var useAppLanguage by remember { mutableStateOf(false) }
-    var useHinglish by remember { mutableStateOf(false) }
-    var detailedAi by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -103,7 +101,13 @@ fun MedicineDetailDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Card(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,7 +115,11 @@ fun MedicineDetailDialog(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(text = stringResource(R.string.medicine_details_screen), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    text = stringResource(R.string.medicine_details_screen),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
 
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -207,75 +215,9 @@ fun MedicineDetailDialog(
                 }
 
                 Text(text = stringResource(R.string.medicine_info), style = MaterialTheme.typography.titleMedium)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.use_ai_summary))
-                    Switch(checked = useAi, onCheckedChange = { useAi = it })
-                }
-
-                if (useAi && info != null) {
-                    if (aiLoading) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = {
-                                    aiError = null
-                                    coroutineScope.launch {
-                                        aiLoading = true
-                                        val rewarded = RewardedAdManager.showRewardedAd(context)
-                                        if (!rewarded) {
-                                            aiError = "Ad not completed"
-                                            aiLoading = false
-                                            return@launch
-                                        }
-                                        val result = runCatching {
-                                            medicineInfoRepository.summarizeWithAi(title, useAppLanguage, useHinglish, detailedAi)
-                                        }.getOrNull()
-                                        if (result == null) {
-                                            aiError = aiUnavailableText
-                                        } else {
-                                            aiInfo = result
-                                        }
-                                        aiLoading = false
-                                    }
-                                }) {
-                                    Text(stringResource(R.string.summarize_with_ai))
-                                }
-                                if (aiInfo != null) {
-                                    OutlinedButton(onClick = {
-                                        coroutineScope.launch {
-                                            medicineInfoRepository.cacheAiSummary(title, aiInfo!!)
-                                        }
-                                    }) {
-                                        Text(stringResource(R.string.save_ai_summary))
-                                    }
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                androidx.compose.material3.Checkbox(checked = useAppLanguage, onCheckedChange = { useAppLanguage = it })
-                                Text(stringResource(R.string.use_app_language))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.Checkbox(checked = useHinglish, onCheckedChange = { useHinglish = it })
-                                Text(stringResource(R.string.use_hinglish))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.Checkbox(checked = detailedAi, onCheckedChange = { detailedAi = it })
-                                Text(stringResource(R.string.detailed_ai_summary))
-                            }
-                        }
-                        aiError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    }
-                }
-
-                if (info == null) {
-                    Text(stringResource(R.string.no_trusted_medicine_info_found))
-                } else {
+                if (info != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(info!!.displayName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                         OutlinedButton(onClick = {
-                            // Trigger AI summarize via the same flow as the button above
                             aiError = null
                             coroutineScope.launch {
                                 aiLoading = true
@@ -286,7 +228,7 @@ fun MedicineDetailDialog(
                                     return@launch
                                 }
                                 val result = runCatching {
-                                    medicineInfoRepository.summarizeWithAi(title, useAppLanguage, useHinglish, detailedAi)
+                                    medicineInfoRepository.summarizeWithAi(title, useAppLanguage = false, preferHinglish = false, detailed = true)
                                 }.getOrNull()
                                 if (result == null) {
                                     aiError = aiUnavailableText
@@ -296,44 +238,37 @@ fun MedicineDetailDialog(
                                 aiLoading = false
                             }
                         }) {
-                            Text("AI")
+                            Text(stringResource(R.string.summarize_with_ai))
+                        }
+                        if (aiInfo != null) {
+                            OutlinedButton(onClick = {
+                                coroutineScope.launch {
+                                    medicineInfoRepository.cacheAiSummary(title, aiInfo!!)
+                                }
+                            }) {
+                                Text(stringResource(R.string.save_ai_summary))
+                            }
                         }
                     }
-                    // If an AI summary exists in memory, show it above the trusted info
+
+                    if (aiLoading) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    aiError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
                     aiInfo?.let { summary ->
-                        Text(text = "AI Summary", style = MaterialTheme.typography.titleMedium)
-                        BulletSection(
-                            title = stringResource(R.string.what_its_for),
-                            items = summary.commonUses
-                        )
-                        BulletSection(
-                            title = stringResource(R.string.side_effects),
-                            items = summary.commonSideEffects
-                        )
-                        BulletSection(
-                            title = stringResource(R.string.warnings),
-                            items = summary.warnings
-                        )
+                        Text(text = stringResource(R.string.ai_summary), style = MaterialTheme.typography.titleMedium)
+                        MedicineInfoPreview(medicineInfo = summary)
                     }
-                    BulletSection(
-                        title = stringResource(R.string.what_its_for),
-                        items = info!!.commonUses
-                    )
-                    BulletSection(
-                        title = stringResource(R.string.side_effects),
-                        items = info!!.commonSideEffects
-                    )
-                    BulletSection(
-                        title = stringResource(R.string.warnings),
-                        items = info!!.warnings
-                    )
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.storage_guidance), style = MaterialTheme.typography.titleMedium)
-                            Text(info!!.storageGuidance)
-                        }
-                    }
-                    Text(info!!.disclaimer, style = MaterialTheme.typography.bodySmall)
+                }
+
+                if (info == null) {
+                    Text(stringResource(R.string.no_trusted_medicine_info_found))
+                } else {
+                    MedicineInfoPreview(medicineInfo = info!!)
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -356,7 +291,11 @@ fun MedicineDetailDialog(
                                 )
                             )
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         Text(stringResource(R.string.save))
                     }
