@@ -28,5 +28,5 @@ class AppContainer(context: Context) {
     val remoteMedicineRepository: RemoteMedicineRepository = RemoteMedicineRepository(remoteMedicineDao)
     val medicineInfoRepository: MedicineInfoRepository = LocalMedicineInfoRepository(appContext, remoteMedicineRepository)
     
-    val billingManager: BillingManager = BillingManager(context, entitlementRepository)
+    val billingManager: BillingManager = BillingManager(context, entitlementRepository).also { it.initialize {} }
 }

@@ -173,10 +173,18 @@ fun MyMedicinesScreen(
             }
 
             item {
+                val activity = LocalContext.current as? android.app.Activity
+                val isPurchasing by appContainer.billingManager.purchaseInProgress.collectAsState(initial = false)
                 EntitlementCard(
                     entitlement = entitlement,
-                    onUpgradeClick = { /* TODO: Launch billing flow */ },
-                    onRestoreClick = { /* TODO: Restore purchase */ },
+                    isPurchasing = isPurchasing,
+                    onUpgradeClick = {
+                        activity?.let { appContainer.billingManager.launchPurchaseFlow(it) }
+                    },
+                    onRestoreClick = {
+                        // re-query purchases to pick up restored purchases
+                        appContainer.billingManager.queryPurchases()
+                    },
                     onDevToggle = { enabled ->
                         scope.launch {
                             appContainer.entitlementRepository.updatePremiumStatus(enabled)
@@ -490,6 +498,7 @@ fun MyMedicinesScreen(
 @Composable
 fun EntitlementCard(
     entitlement: UserEntitlementEntity?,
+    isPurchasing: Boolean = false,
     onUpgradeClick: () -> Unit = {},
     onRestoreClick: () -> Unit = {},
     onDevToggle: (Boolean) -> Unit = {}
@@ -559,9 +568,16 @@ fun EntitlementCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onUpgradeClick,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isPurchasing
                 ) {
-                    Text(stringResource(R.string.upgrade_to_premium))
+                    if (isPurchasing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.upgrade_to_premium))
+                    } else {
+                        Text(stringResource(R.string.upgrade_to_premium))
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(

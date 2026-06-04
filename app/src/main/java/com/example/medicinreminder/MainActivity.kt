@@ -30,8 +30,10 @@ import com.example.medicinreminder.data.repository.AppContainer
 import com.example.medicinreminder.data.settings.LanguagePreferences
 import com.example.medicinreminder.data.worker.MedicineSyncScheduler
 import com.example.medicinreminder.R
+import com.example.medicinreminder.security.DeviceIntegrityChecker
 import com.example.medicinreminder.ui.navigation.AppNavigation
 import com.example.medicinreminder.ui.theme.MedicinReminderTheme
+import com.example.medicinreminder.ui.screens.SecurityBlockScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,6 +61,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         super.onCreate(savedInstanceState)
+
+        val compromised = runCatching { DeviceIntegrityChecker.isDeviceCompromised(applicationContext) }.getOrDefault(false)
+        if (compromised) {
+            setContent {
+                MedicinReminderTheme {
+                    SecurityBlockScreen()
+                }
+            }
+            return
+        }
         
         try {
             appContainer = AppContainer(application)

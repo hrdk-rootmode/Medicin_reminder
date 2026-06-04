@@ -9,7 +9,7 @@ data class UserEntitlementEntity(
     @PrimaryKey
     val id: Int = 1, // Singleton, always 1
     val trialStart: Long = System.currentTimeMillis(),
-    val trialEnd: Long = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000), // 30 days
+    val trialEnd: Long = System.currentTimeMillis() + (90L * 24 * 60 * 60 * 1000), // 3 months
     @ColumnInfo(name = "isPremium")
     val l1f3t1m3_flag: Boolean = false,
     val purchaseToken: String? = null,

@@ -13,6 +13,9 @@
     <string name="allow_medicine_reminders_message">Exact alarms are needed so medicine notifications and repeat alerts can ring on time.</string>
     <string name="allow">Allow</string>
     <string name="later">Later</string>
+    <string name="security_block_title">Device not supported</string>
+    <string name="security_block_message">This device looks modified, rooted, or unsafe. For your account safety, the app cannot continue here.</string>
+    <string name="security_block_hint">Use a normal, unmodified device and install the app from Google Play.</string>
 
     <string name="today_tab">Today</string>
     <string name="add_tab">Add Medicine</string>
@@ -51,7 +54,7 @@
     <string name="gallery">Gallery</string>
     <string name="selected_medicine_image">Selected medicine image</string>
     <string name="medicine_name">Medicine name</string>
-    <string name="medicine_name_hint">Edit this before saving if OCR guessed wrong.</string>
+    <string name="medicine_name_hint">Type the medicine name here. Suggestions are only to help you type faster and may not show every medicine.</string>
     <string name="select_all">Select all</string>
     <string name="finding_medicines">Finding medicines...</string>
     <string name="custom_reminder_title">Custom reminder title</string>
@@ -79,6 +82,7 @@
     <string name="storage_guidance">Storage guidance</string>
     <string name="source_prefix">Source: %1$s</string>
     <string name="choose_medicine">Choose medicine</string>
+    <string name="choose_medicine_disclaimer">Suggestions are only for help. If a medicine is not shown, it does not mean the medicine does not exist.</string>
     <string name="what_its_for">What it is for</string>
     <string name="warnings">Warnings</string>
     <string name="how_to_take">How to take</string>

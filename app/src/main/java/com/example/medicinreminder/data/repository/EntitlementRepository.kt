@@ -8,6 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import com.example.medicinreminder.BuildConfig
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 
 class EntitlementRepository(private val entitlementDao: UserEntitlementDao, private val appContext: Context) {
 
@@ -40,7 +45,7 @@ class EntitlementRepository(private val entitlementDao: UserEntitlementDao, priv
                 // Development shortcut: in debug builds, start with premium/unlimited and no-ads
                 if (BuildConfig.DEBUG) {
                     val Il1lIl = System.currentTimeMillis()
-                    val O0O0O_ms = 45L * 24 * 60 * 60 * 1000
+                    val O0O0O_ms = 90L * 24 * 60 * 60 * 1000
                     val demoEntitlement = UserEntitlementEntity(
                         trialStart = Il1lIl,
                         trialEnd = Il1lIl + O0O0O_ms,
@@ -125,6 +130,55 @@ class EntitlementRepository(private val entitlementDao: UserEntitlementDao, priv
     suspend fun updatePurchaseToken(token: String?) {
         withContext(Dispatchers.IO) {
             entitlementDao.updatePurchaseToken(token)
+        }
+    }
+
+    /**
+     * Send the purchase token to the server-side validator. Returns true if server validated.
+     */
+    suspend fun validatePurchaseWithServer(packageName: String, productId: String, purchaseToken: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient()
+                val json = JSONObject().apply {
+                    put("packageName", packageName)
+                    put("productId", productId)
+                    put("purchaseToken", purchaseToken)
+                }
+                val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                val body = json.toString().toRequestBody(mediaType)
+                val req = Request.Builder()
+                    .url(BuildConfig.PURCHASE_VALIDATION_URL)
+                    .post(body)
+                    .build()
+
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@withContext false
+                    val respBody = resp.body?.string().orEmpty()
+                    val obj = JSONObject(respBody)
+                    return@withContext obj.optBoolean("valid", false)
+                }
+            } catch (e: Exception) {
+                return@withContext false
+            }
+        }
+    }
+
+    /**
+     * Verify with server; if valid, persist token and grant premium.
+     */
+    suspend fun verifyPurchaseAndGrant(packageName: String, productId: String, purchaseToken: String) {
+        // If no server URL is configured, allow debug fallback for local testing only.
+        val serverUrl = BuildConfig.PURCHASE_VALIDATION_URL
+        val ok = if (serverUrl.isBlank()) {
+            BuildConfig.DEBUG
+        } else {
+            validatePurchaseWithServer(packageName, productId, purchaseToken)
+        }
+
+        if (ok) {
+            updatePurchaseToken(purchaseToken)
+            updatePremiumStatus(true)
         }
     }
 

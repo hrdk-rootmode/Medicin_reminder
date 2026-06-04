@@ -37,6 +37,7 @@ android {
 
         buildConfigField("String", "OPEN_FDA_API_KEY", buildConfigString("OPEN_FDA_API_KEY"))
         buildConfigField("String", "GROQ_API_KEY", buildConfigString("GROQ_API_KEY"))
+        buildConfigField("String", "PURCHASE_VALIDATION_URL", buildConfigString("PURCHASE_VALIDATION_URL"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

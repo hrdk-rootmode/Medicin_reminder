@@ -993,6 +993,11 @@ private fun SuggestionListCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.choose_medicine), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.choose_medicine_disclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             suggestions.forEach { suggestion ->
                 Row(
                     modifier = Modifier
